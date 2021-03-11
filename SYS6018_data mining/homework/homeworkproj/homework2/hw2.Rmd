@@ -1,0 +1,360 @@
+---
+title: "Homework #2: Resampling" 
+author: "**Siyu Jian / sj9va**"
+date: "Due: Wed Feb 24 | 10:55am"
+output: R6018::homework
+---
+
+**SYS 4582/6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+# options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data/' # data directory
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation  
+library(boot)
+library(broom)
+library(splines)
+```
+
+
+# Problem 1: Bootstrapping 
+
+Bootstrap resampling can be used to quantify the uncertainty in a fitted curve. 
+
+
+## a. Create a set of functions to generate data from the following distributions:
+\begin{align*}
+X &\sim \mathcal{U}(0, 2) \qquad \text{Uniform in $[0,2]$}\\
+Y &= 1 + 2x + 5\sin(5x) + \epsilon \\
+\epsilon &\sim \mathcal{N}(0,\, \sigma=2.5)
+\end{align*}
+
+### {.solution}
+
+Add solution here
+
+```{r}
+library(dplyr)
+sim_x <- function(n) runif(n,0,2)
+yfunc <- function(x) 1 + 2*x + 5*sin(5*x)
+sim_y <- function(x,sd){
+  n = length(x)
+  yfunc(x) + rnorm(n,sd = sd)
+}
+
+dataSet <- function(n, sd){
+  tibble(x=sim_x(n),
+         y= sim_y(x,sd))
+}
+```
+
+
+## b. Simulate $n=100$ realizations from these distributions. Produce a scatterplot and draw the true regression line $f(x) = E[Y \mid X=x]$. Use `set.seed(211)` prior to generating the data.
+
+### {.solution}
+
+Add solution here
+
+```{r}
+
+n  = 100
+sd = 2.5
+set.seed(211)
+
+data_train = dataSet(n,sd)
+
+ggplotCanv <- ggplot(data_train, aes(x,y)) + geom_point() 
+  
+ggplotCanv+
+  stat_function(fun = yfunc,aes(colour = "trueReg"))+
+  scale_color_discrete(name="model")
+
+```
+
+
+## c. Fit a 5th degree polynomial. Produce a scatterplot and draw the *estimated* regression curve.
+
+
+### {.solution}
+
+Add solution here
+```{r}
+ggplotCanv + 
+  geom_smooth(method = "lm",formula = "y~poly(x,5)", se=FALSE, aes(color ="pol5"))
+```
+
+
+
+## d. Draw 200 bootstrap samples, fit a 5th degree polynomial to each bootstrap sample, and make predictions at `eval.pts = seq(0, 2, length=100)`
+- Set the seed (use `set.seed(212)`) so your results are reproducible.
+- Produce a scatterplot and add the 200 bootstrap curves
+    
+### {.solution}
+
+Add solution here
+
+```{r warning=FALSE}
+M = 200
+data_eval = tibble(x=seq(0,2,length=100))
+YHAT = matrix(NA, nrow(data_eval),M)
+
+set.seed(212)
+for (m in 1:M) {
+  ind = sample(n, replace = TRUE)
+  data.boot = data_train[ind,]
+  m_boot = lm(y~poly(x,5),data = data.boot)
+  pridicVal = predict(m_boot,newdata = data_eval)
+  YHAT[,m] = pridicVal
+
+}
+
+data_fit = as_tibble(YHAT) %>%
+  bind_cols(data_eval) %>%
+  gather(simulation, y, -x)
+
+ggplotCanv + 
+  geom_line(data=data_fit, color="red", alpha=.10, aes(group=simulation)) +  
+  geom_point() 
+```
+
+    
+    
+## e. Calculate the pointwise 95% confidence intervals from the bootstrap samples. That is, for each $x \in {\rm eval.pts}$, calculate the upper and lower limits such that only 5% of the curves fall outside the interval at $x$. 
+- Remake the plot from part *c*, but add the upper and lower boundaries from the 95% confidence intervals. 
+
+
+### {.solution}
+
+Add solution here
+
+```{r}
+# loop on the boundary and get the confidence interval bounday for the each dataset
+confidentBoundary = tibble(upBoundary=numeric(),lowBoundary=numeric())
+
+for (data_index in 1:nrow(data_eval)){
+  test_set.singleX = tibble(x=1:M,y=YHAT[data_index,])
+  confidenceVal = quantile(test_set.singleX$y,probs = c(0.025,0.975))
+  confidentBoundary = add_row(confidentBoundary,lowBoundary = confidenceVal[[1]],upBoundary=confidenceVal[[2]])
+}
+
+data_boundary = as_tibble(confidentBoundary) %>%
+  bind_cols(data_eval) %>%
+ gather(boundary,y,-x)
+ggplotCanv +
+  geom_line(data = data_boundary,aes(x=x,colour=boundary)) 
+```
+
+
+
+# Problem 2: V-Fold cross-validation with $k$ nearest neighbors
+
+Run 10-fold cross-validation on the data generated in part 1b to select the optimal $k$ in a k-nearest neighbor (kNN) model. Then evaluate how well cross-validation performed by evaluating the performance on a large test set. The steps below will guide you.
+
+
+## a. Use $10$-fold cross-validation to find the value of $k$ (i.e., neighborhood size) that provides the smallest cross-validated MSE using a kNN model. 
+
+- Search over $k=3,4,\ldots, 50$.
+- Use `set.seed(221)` prior to generating the folds to ensure the results are replicable. 
+- Show the following:
+    - the optimal $k$ (as determined by cross-validation)
+    - the corresponding estimated MSE
+    - produce a plot with $k$ on the x-axis and the estimated MSE on the y-axis (optional: add 1-standard error bars). 
+- Notation: *v*-fold cross-validation; *k*-nearest neighbor. Don't get yourself confused.
+
+
+### {.solution}
+
+Add solution here
+```{r}
+library(FNN)
+library(knitr)
+set.seed(221)
+n.folds = 10 # asign the K.fold vallue 
+fold = sample(rep(1:n.folds, length=n))
+k.knn = seq(3,50,by=1) # k value for the knn 
+
+# function used for evalute the knn mse
+knn_eval <- function(data_train,data_test,kseq=seq(3,50,by=1)){
+  MSE = numeric(length(kseq))
+  EDF = numeric(length(kseq))
+  # get the mse for each k
+  for (i in 1:length(kseq)) {
+    k = kseq[i]
+    #get the test dataset residual
+    knn.test = knn.reg(data_train[,'x', drop=FALSE],
+                       y = data_train$y,
+                       test=data_test[,'x', drop=FALSE],
+                       k=k)
+    EDF[i] = nrow(data_train)/k
+    r.test = data_test$y-knn.test$pred # residuals on test data
+    MSE[i] = mean(r.test^2)          # test MSE
+  }
+  tibble(k = kseq, mse = MSE, edf = EDF)
+}
+
+results = tibble()
+
+for (j in 1:n.folds) {
+  val = which(fold == j)
+  train = which(fold != j)
+  
+  n.val = length(val)
+  results_j = knn_eval(data_train[train,],data_train[val,],kseq = k.knn)
+  results = bind_rows(results,results_j %>% mutate(n.val,fold = j))
+}
+
+
+#results %>% filter(k==8) %>% mutate(sse = mse*n.val) %>% mutate(mse_sum = sum(sse)) %>%mutate(mse_sum/nrow(data_train)) %>%kable()
+
+# proprocess before  plot 
+# MSE will be the mean of the 10 fold for each k value 
+R = results %>%
+  mutate(sse = mse*n.val) %>%
+  group_by(k) %>%
+  summarise(Kv = n(), sse = sum(sse),MSE = sse/nrow(data_train),
+            mse_mn=mean(mse),mse_sd = sd(mse),se = mse_sd/sqrt(Kv))
+
+R %>%
+  ggplot(aes(k,MSE)) + geom_point() + geom_line() + 
+  # geom_errorbar(aes(ymin=MSE-se, ymax=MSE+se), width=.2,position=position_dodge(.5))+
+  geom_point(data=. %>% filter(MSE==min(MSE)), color="red", size=3) + 
+  scale_x_continuous(breaks=seq(1,60,by=2))
+# kable(R)
+```
+the value of k (i.e., neighborhood size) that provides the smallest cross-validated MSE :
+```{r}
+finalRes.a = R%>%filter(MSE==min(MSE))
+tibble(k=finalRes.a$k,min_mse = finalRes.a$MSE)
+```
+
+
+## b. The $k$ (number of neighbors) in a kNN model determines the effective degrees of freedom *edf*. What is the optimal *edf*? Be sure to use the correct sample size when making this calculation. Produce a plot similar to that from part *a*, but use *edf* (effective degrees of freedom) on the x-axis. 
+
+
+### {.solution}
+
+Add solution here
+
+```{r}
+# proprocess before  plot 
+Redf = results %>%
+  mutate(sse = mse*n.val) %>%
+  group_by(edf) %>%
+  summarise(Kv = n(), sse = sum(sse),MSE = sse/nrow(data_train),
+            mse_mn=mean(mse),mse_sd = sd(mse),se = mse_sd/sqrt(Kv))
+
+
+Redf %>%
+  ggplot(aes(edf,MSE)) + geom_point() + geom_line() + 
+  geom_point(data=. %>% filter(MSE==min(MSE)), color="red", size=3)+
+  scale_x_continuous(breaks=seq(1,60,by=2))
+
+```
+The optimal edf is :
+```{r}
+finalRes.b = Redf %>%filter(MSE==min(MSE))
+
+kable(tibble(edf = finalRes.b$edf, min_mse = finalRes.b$MSE))
+```
+
+## c. After running cross-validation, a final model fit from *all* of the training data needs to be produced to make predictions. What value of $k$ would you choose? Why? 
+
+
+### {.solution}
+
+I would choose $k=8$. When $k==8$ the mse of the test data set reach minimum which means it can represent the over all shape of the data set. When k is less than 8, the mean of the data set window is too small, it catches the details of the data point instead of the over all shape of the curve. When k is large, the mean of the data set window is too big, it will ignore the cure of the over shape which make the mse bad.  
+```{r echo=FALSE}
+# R %>% filter(MSE == min(MSE)) %>%kable()
+tibble(k=finalRes.a$k,min_mse = finalRes.a$MSE)
+```
+
+
+
+## d. Now we will see how well cross-validation performed. Simulate a test data set of $50000$ observations from the same distributions. Use `set.seed(223)` prior to generating the test data. 
+- Fit a set of kNN models, using the full training data, and calculate the mean squared error (MSE) on the test data for each model. Use the same $k$ values in *a*. 
+- Report the optimal $k$, the corresponding *edf*, and MSE based on the test set. 
+
+### {.solution}
+
+Add solution here
+
+- kNN k regression 
+```{r} 
+#, fig.width=15,fig.height=10
+set.seed(223)
+testdata = dataSet(50000,sd)
+
+results.d = knn_eval(data_train,testdata,kseq = k.knn)
+
+results.d %>% ggplot(aes(k,mse))+ geom_point() + geom_line() + 
+  geom_point(data=. %>% filter(mse==min(mse)), color="red", size=3)+
+  scale_x_continuous(breaks=seq(1,60,by=2))
+```
+
+- Optimal k result:
+```{r echo=FALSE}
+results.d %>% filter(mse == min(mse)) %>% kable()
+```
+
+
+
+## e. Plot both the cross-validation estimated and (true) error calculated from the test data on the same plot. See Figure 5.6 in ISL (pg 182) as a guide. 
+- Produce two plots: one with $k$ on the x-axis and one with *edf* on the x-axis.
+- Each plot should have two lines: one from part *a* and one from part *d* 
+    
+### {.solution}
+
+Add solution here
+```{r}
+#maybe the question is just just merge the two plot from a. and d. ????
+result.e = tibble(k = k.knn,cv.mse = R$MSE, td.mse = results.d$mse)
+
+result.e.merge = result.e %>% gather(model,mse,-k)
+
+#kable(result.e.merge %>% filter(result.e.merge$model == "cv.mse") %>% filter(mse == min(mse)))
+
+ggplot(data = result.e.merge, aes(x=k,y=mse, colour = model)) + geom_point()+ geom_line() +
+  geom_point(data=. %>% filter(result.e.merge$model == "cv.mse") %>% filter(mse == min(mse)), color="magenta", size=3)+
+  geom_point(data=. %>% filter(result.e.merge$model == "td.mse") %>% filter(mse == min(mse)), color="blue", size=3)+
+  scale_x_continuous(breaks=seq(1,60,by=2)) + 
+  ggtitle("k vs. mse")
+
+
+```
+
+```{r}
+result.e2 = tibble(model = "cv.mse",edf = Redf$edf, mse = Redf$MSE)
+result.e2 = add_row(result.e2,model = "td.mse",edf = results.d$edf,mse = results.d$mse)
+
+ggplot(data = result.e2, aes(x = edf, y=mse, colour = model)) + geom_point() + geom_line() +
+  geom_point(data=. %>% filter(result.e2$model == "cv.mse") %>% filter(mse == min(mse)), color="magenta", size=3)+
+  geom_point(data=. %>% filter(result.e2$model == "td.mse") %>% filter(mse == min(mse)), color="blue", size=3)+
+  scale_x_continuous(breaks=seq(1,60,by=2)) + 
+  ggtitle("edf vs. mse")
+
+
+```
+
+    
+## f. Based on the plots from *e*, does it appear that cross-validation worked as intended? How sensitive is the choice of $k$ on the resulting test MSE?      
+
+### {.solution}
+
+* Based on the plots from e, does it appear that cross-validation worked as intended?
+
+Yes, the CV worked as intended. In both k-mse and the edf-mse plot, although the test data set mse is little smaller than the CV mse, the cross-validation and the test data follows the exactly same trend. Even the k with the minimum mse for the two model are pretty close. 
+
+* How sensitive is the choice of k on the resulting test MSE?
+
+When k is small, the test MSE will decrease when k increase. Close to the minimum mse k area, the mse is less sensitive to the k value. When k increase, the mse value does not change much. In large K area, when k increase, the mse also increase. 
+

@@ -1,0 +1,350 @@
+---
+title: "Homework #4: Classification" 
+author: "**Meng Hua**"
+date: "Due: Wed Mar 10 | 10:55am"
+output: R6018::homework
+---
+
+**SYS 4582/6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+# options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data/' # data directory
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation   
+```
+
+
+
+# Crime Linkage
+
+Crime linkage attempts to determine if two or more unsolved crimes share a common offender. *Pairwise* crime linkage is the more simple task of deciding if two crimes share a common offender; it can be considered a binary classification problem. The linkage training data has 8 evidence variables that measure the similarity between a pair of crimes:
+
+- `spatial` is the spatial distance between the crimes
+- `temporal` is the fractional time (in days) between the crimes
+- `tod` and `dow` are the differences in time of day and day of week between the crimes
+- `LOC`, `POA,` and `MOA` are binary with a 1 corresponding to a match (type of property, point of entry, method of entry)
+- `TIMERANGE` is the time between the earliest and latest possible times the crime could have occurred (because the victim was away from the house during the crime).
+- The response variable indicates if the crimes are linked ($y=1$) or unlinked ($y=0$).
+
+
+These problems use the [linkage-train](https://mdporter.github.io/SYS6018/data/linkage_train.csv) and [linkage-test](https://mdporter.github.io/SYS6018/data/linkage_test.csv) datasets (click on links for data). 
+
+
+
+# Problem 1: Penalized Regression for Crime Linkage
+
+## a. Fit a penalized *linear regression* model. Use a lasso, ridge, or elasticnet penalty (your choice). 
+- Report the value of $\alpha$ used (if elasticnet)
+- Report the value of $\lambda$ used
+- Report the estimated coefficients
+
+
+### {.solution}
+
+```{r message = FALSE} 
+
+library(readr)
+library(knitr)
+library(glmnet)
+
+set.seed(200)
+
+train_url = "https://mdporter.github.io/SYS6018/data/linkage_train.csv"
+test_url = "https://mdporter.github.io/SYS6018/data/linkage_test.csv"
+
+train_reader = readr::read_csv(train_url)
+test_reader  = readr::read_csv(test_url)
+
+data_train.X = model.matrix(~ 0 + spatial + temporal + tod + dow + LOC + POA + MOA + TIMERANGE, data = train_reader)
+data_train.y = model.matrix(~ 0 + y, data = train_reader)
+
+# load the test dataset 
+data_test.X  = model.matrix(~ 0 + spatial + temporal + tod + dow + LOC + POA + MOA + TIMERANGE, data = test_reader)
+
+
+#Set the fitting and fit the 
+n.fold = 10
+
+alpha.range = seq(0,1,by=0.01)
+
+cvRes.1a = tibble(model = str_c(),mse = numeric(), alpha = numeric(), lambda = numeric())
+fold = sample(rep(1:n.fold, length=nrow(data_train.X)))
+for (alpha in alpha.range) {
+  
+  fit.enet = cv.glmnet(data_train.X,data_train.y,alpha = alpha, foldid = fold)
+  
+  mse.min.enet = fit.enet$cvm[fit.enet$lambda == fit.enet$lambda.min]
+  mse.1se.enet = fit.enet$cvm[fit.enet$lambda == fit.enet$lambda.1se]
+  
+  lambda.min = fit.enet$lambda.min
+  lambda.1se = fit.enet$lambda.1se
+  
+  cvRes.1a = add_row(cvRes.1a, model = "min", alpha = alpha, mse = mse.min.enet,lambda = lambda.min)
+  #cvRes.1a = add_row(cvRes.1a, model = "1se", alpha = alpha, mse = mse.1se.enet,lambda = lambda.1se)
+}
+
+ggplot(cvRes.1a,aes(x = alpha,y=mse,color = model)) + geom_point() + geom_line() + 
+  geom_point(data =. %>% filter(mse == min(mse)),color="red",size=3)
+```
+The Best $\alpha$ and $\lambda$ we choose from the previous fit would be :
+
+```{r }
+minRes <- cvRes.1a %>% filter(mse == min(mse))
+minRes %>% kable()
+```
+
+At best $\alpha$ and $\lambda$ location, the coeffcient would be :
+
+```{r}
+alpha.choose.1a = minRes$alpha
+fit.enet.1a = cv.glmnet(data_train.X,data_train.y,alpha = alpha.choose.1a, foldid = fold)
+#plot(fit.enet.1a)
+
+# prepare the Q.c
+yhat.enet  = predict(fit.enet.1a,data_train.X, s="lambda.min",type="response")
+gamma.enet = predict(fit.enet.1a,data_train.X, s="lambda.min",type="link")
+coef(fit.enet.1a,s="lambda.min")
+```
+
+
+
+
+## b. Fit a penalized *logistic regression* model. Use a lasso, ridge, or elasticnet penalty (your choice).  
+- Report the value of $\alpha$ used (if elasticnet)
+- Report the value of $\lambda$ used
+- Report the estimated coefficients
+
+### {.solution}
+
+ADD SOLUTION HERE
+
+```{r}
+
+set.seed(2020)
+
+cvRes.1b = tibble(model = str_c(), mse =numeric(), alpha = numeric(), lambda = numeric())
+alpha.range = seq(0,1, by =0.05)
+
+for (alpha  in alpha.range) {
+  fit.logistic.1b = cv.glmnet(y~spatial + temporal + tod + dow + LOC +POA +MOA + TIMERANGE, data=train_reader, 
+                     alpha=alpha,family="binomial")
+  mse.min.enet = fit.logistic.1b$cvm[fit.logistic.1b$lambda == fit.logistic.1b$lambda.min]
+  mse.1se.enet = fit.logistic.1b$cvm[fit.logistic.1b$lambda == fit.logistic.1b$lambda.1se]
+  lambda.min = fit.logistic.1b$lambda.min
+  lambda.1se = fit.logistic.1b$lambda.1se
+  cvRes.1b = add_row(cvRes.1b,model = "min",alpha = alpha,  mse = mse.min.enet, lambda = lambda.min)
+}
+
+ggplot(cvRes.1b,aes(x = alpha,y=mse,color = model)) + geom_point() + geom_line() + 
+  geom_point(data =. %>% filter(mse == min(mse)),color="red",size=3)
+
+```
+- The Best $\alpha$,$\lambda$ used in the fitting:
+```{r}
+minRes <- cvRes.1b %>% filter(mse == min(mse))
+minRes %>% kable()
+```
+- estimated coefficients
+```{r}
+alpha.choose.1b = minRes$alpha
+fit.logistic.1b = cv.glmnet(y~spatial + temporal + tod + dow + LOC +POA +MOA + TIMERANGE, data=train_reader, 
+                     alpha=alpha.choose.1b,family="binomial")
+
+#prepare the Q.c
+yhat.logistic  = predict(fit.logistic.1b,data_train.X, s="lambda.min",type="response")
+gamma.logistic = predict(fit.logistic.1b,data_train.X, s="lambda.min",type="link")
+
+#plot(fit.logistic.1b)
+coef(fit.logistic.1b, s="lambda.min")
+```
+
+
+## c. Produce one plot that has the ROC curves, using the *training data*, for both models (from part a and b). Use color and/or linetype to distinguish between models and include a legend.    
+
+### {.solution}
+
+ADD SOLUTION HERE
+```{r message=FALSE}
+
+perf.enet = tibble(truth = data_train.y, gamma.enet,yhat.enet) %>%
+  group_by(gamma.enet,yhat.enet) %>%
+  summarize(n=n(), n.1=sum(truth), n.0=n-sum(truth)) %>% ungroup() %>% 
+  #- calculate metrics
+  arrange(gamma.enet) %>%
+  mutate(FN = cumsum(n.1),    # false negatives 
+         TN = cumsum(n.0),    # true negatives
+         TP = sum(n.1) - FN,  # true positives
+         FP = sum(n.0) - TN,  # false positives
+         N = cumsum(n),       # number of cases predicted to be 1
+         TPR = TP/sum(n.1), FPR = FP/sum(n.0)) %>% 
+  #- only keep relevant metrics
+  select(-n, -n.1, -n.0, gamma.enet, yhat.enet)
+
+# build the logistic regression result
+perf.logistic = tibble(truth = data_train.y,gamma.logistic,yhat.logistic) %>%
+  group_by(gamma.logistic,yhat.logistic) %>%
+  summarize(n=n(), n.1=sum(truth), n.0=n-sum(truth)) %>% ungroup() %>% 
+  #- calculate metrics
+  arrange(gamma.logistic) %>% 
+  mutate(FN = cumsum(n.1),    # false negatives 
+         TN = cumsum(n.0),    # true negatives
+         TP = sum(n.1) - FN,  # true positives
+         FP = sum(n.0) - TN,  # false positives
+         N = cumsum(n),       # number of cases predicted to be 1
+         TPR = TP/sum(n.1), FPR = FP/sum(n.0)) %>% 
+  #- only keep relevant metrics
+  select(-n, -n.1, -n.0, gamma.logistic, yhat.logistic)
+
+ggplot()+
+  geom_path(data=perf.enet,aes(FPR, TPR,color="enet model")) + 
+  geom_path(data=perf.logistic,aes(FPR, TPR,color="logistic")) + 
+  labs(x='FPR (1-specificity)', y='TPR (sensitivity)',color='model') + 
+  geom_segment(x=0, xend=1, y=0, yend=1, lty=3, color='grey50') + 
+  scale_x_continuous(breaks = seq(0, 1, by=.20)) + 
+  scale_y_continuous(breaks = seq(0, 1, by=.20)) + 
+  ggtitle("ROC Curve") 
+  
+
+```
+
+
+
+## d. Recreate the ROC curve from the penalized logistic regression model using repeated hold-out data. The following steps will guide you:
+- Fix $\alpha=.75$ 
+- Run the following steps 25 times:
+i. Hold out 500 observations
+ii. Use the remaining observations to estimate $\lambda$ 
+iii. Predict the probability of the 500 hold-out observations
+iv. Store the predictions and hold-out labels
+- Combine the results and produce the hold-out based ROC curve
+- Note: by estimating $\lambda$ each iteration, we are incorporating the uncertainty present in estimating that tuning parameter. 
+    
+### {.solution}
+
+ADD SOLUTION HERE
+```{r}
+set.seed(2021)
+steps = 25
+alpha = 0.75
+holdout = 500
+
+cvRes.d = tibble()
+for( step in 1:steps){
+  # prepare the training and test dataset 
+  test = sample(nrow(train_reader),size = holdout)  ## sample 500 to hold
+  train = -test 
+  
+  dataSet_train  = train_reader[train,]
+  dataSet_train.X = dataSet_train %>% select(-y) %>% as.matrix()
+  dataSet_train.y = dataSet_train %>% select(y) %>% as.matrix()
+  
+  dataSet_test   = train_reader[test,]
+  dataSet_test.X = dataSet_test %>% select(-y) %>% as.matrix()
+  dataSet_test.y = dataSet_test %>% select(y) %>% as.matrix()
+  
+  fit.logistic.step = cv.glmnet(x=dataSet_train.X, y= dataSet_train.y,alpha = alpha, family="binomial")
+
+  # buffer the result
+  gamma  = predict(fit.logistic.step, dataSet_test.X, s="lambda.min",type="link")
+  yhat   = predict(fit.logistic.step, dataSet_test.X, s="lambda.min",type="response")
+  res = tibble(step = step, trueVal = dataSet_test.y, gamma = gamma, yhat = yhat)
+  cvRes.d = bind_rows(cvRes.d, res)
+}
+
+```
+
+```{r}
+## post-process, get the result and generate the result 
+perf = tibble(truth = cvRes.d$trueVal, gamma = cvRes.d$gamma, yhat = cvRes.d$yhat) %>%
+    group_by(gamma,yhat) %>%
+    summarize(n=n(), n.1=sum(truth), n.0=n-sum(truth)) %>% ungroup() %>% 
+    #- calculate metrics
+    arrange(gamma) %>% 
+    mutate(FN = cumsum(n.1),    # false negatives 
+           TN = cumsum(n.0),    # true negatives
+           TP = sum(n.1) - FN,  # true positives
+           FP = sum(n.0) - TN,  # false positives
+           N = cumsum(n),       # number of cases predicted to be 1
+           TPR = TP/sum(n.1), FPR = FP/sum(n.0)) %>% 
+    #- only keep relevant metrics
+    select(-n, -n.1, -n.0, gamma, yhat)
+
+ggplot(perf,aes(FPR,TPR,color="logistic")) + geom_path()+
+  labs(x='FPR (1-specificity)', y='TPR (sensitivity)') + 
+  geom_segment(x=0, xend=1, y=0, yend=1, lty=3, color='grey50') + 
+  scale_x_continuous(breaks = seq(0, 1, by=.20)) + 
+  scale_y_continuous(breaks = seq(0, 1, by=.20)) + 
+  ggtitle("ROC Curve")  
+
+```
+
+
+## e. Contest Part 1: Predict the estimated *probability* of linkage for the test data (using any model). 
+- Submit a .csv file (ensure comma separated format) named `lastname_firstname_1.csv` that includes the column named **p** that is your estimated posterior probability. We will use automated evaluation, so the format must be exact. 
+- You are free to use any tuning parameters
+- You are free to use any data transformation or feature engineering
+- You will receive credit for a proper submission; the top five scores will receive 2 bonus points.     
+- Your probabilities will be evaluated with respect to the mean negative Bernoulli log-likelihood (known as the average *log-loss* metric)
+$$ 
+L = - \frac{1}{M} \sum_{i=1}^m [y_i \log \, \hat{p}_i + (1 - y_i) \log \, (1 - \hat{p}_i)]
+$$
+where $M$ is the number of test observations, $\hat{p}_i$ is the prediction for the $i$th test observation, and $y_i \in \{0,1\}$ are the true test set labels. 
+
+### {.solution}
+
+ADD SOLUTION HERE
+
+From the result of the previous question, it seems like the logistic model is better. Here in the prediction, we will use the logistic model.
+```{r message=FALSE}
+yhat = predict(fit.logistic.1b,data_test.X,s="lambda.min",type = 'response')
+colnames(yhat)[1] <- "p"
+write.csv(yhat,"jian_siyu_1.csv")
+```
+
+
+
+## f. Contest Part 2: Predict the linkages for the test data (using any model). 
+- Submit a .csv file (ensure comma separated format) named `lastname_firstname_2.csv` that includes the column named **linkage** that takes the value of 1 for linkages and 0 for unlinked pairs. We will use automated evaluation, so the format must be exact. 
+- You are free to use any tuning parameters.
+- You are free to use any data transformation or feature engineering.
+- Your labels will be evaluated based on total cost, where cost is equal to `1*FP + 8*FN`. This implies that False Negatives (FN) are 8 times as costly as False Negatives (FP)    
+- You will receive credit for a proper submission; the top five scores will receive 2 bonus points. Note: you only will get bonus credit for one of the two contests. 
+
+### {.solution}
+
+```{r}
+# idea, on the trainning dataset, get the cost curves, and find the threashold on the minimum threshold 
+#-- Make Cost curves
+perfcost = perf.logistic %>% mutate(cost = 1*FP + 8*FN) 
+perfcost %>%   # use 1:10 costs
+  ggplot(aes(yhat.logistic, cost)) + geom_line() + 
+  geom_point(data=. %>% filter(cost==min(cost)), size=3, color='orange') + # # optimal from test data
+  geom_vline(xintercept = 1/8, color='purple') +  # theoretical optimal
+  ggtitle('Cost of FP = 1; Cost of FN=8') + 
+  labs(x="threshold (p.hat)")
+
+yhatThres = perfcost %>% filter(cost==min(cost)) %>% select(yhat.logistic)
+
+yhatThresVal = yhatThres$yhat.logistic[,1]
+yhat  = predict(fit.logistic.1b,data_test.X,s="lambda.min", type = 'response')
+
+predictRes = ifelse(yhat >= yhatThresVal, 1, 0)
+# rename the column
+colnames(predictRes)[1] <- "linkage"
+write.csv(predictRes,"jian_siyu_2.csv")
+```
+
+
+
+
+

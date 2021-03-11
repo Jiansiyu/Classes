@@ -1,0 +1,400 @@
+---
+title: "Homework #1: Supervised Learning" 
+author: "**Siyu Jian / sj9va**"
+date: "Due: Mon Feb 15 | 10:55am"
+output: R6018::homework
+---
+
+**SYS 4582/6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+# options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data/' # data directory
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation    
+```
+
+
+# Problem 1: Evaluating a Regression Model 
+
+## a. Create a set of functions to generate data from the following distributions:
+\begin{align*}
+X &\sim \mathcal{N}(0, 1) \\
+Y &= -1 + .5X + .2X^2 + \epsilon \\
+\epsilon &\sim \mathcal{N}(0,\, \sigma)
+\end{align*}
+
+### {.solution}
+
+Add solution here
+```{r}
+library(dplyr)
+
+sim_x <- function(n) rnorm(n,0,1)
+
+yfunc <- function(x) -1 + 0.5 *x + 0.2*x*x   # help func for y 
+
+sim_y <- function(x, sd){
+  n = length(x)
+  yfunc(x) + rnorm(n,sd = sd)
+}
+
+dataSet <- function(n,sigma){
+  tibble(x = sim_x(n),
+  y = sim_y(x,sigma))
+}
+```
+
+
+## b. Simulate $n=100$ realizations from these distributions using $\sigma=3$. Produce a scatterplot and draw the true regression line $f(x) = E[Y \mid X=x]$. 
+- Use `set.seed(611)` prior to generating the data.
+
+
+### {.solution}
+
+Add solution here
+```{r}
+set.seed(611)
+n=100
+sd = 3.0
+
+x = sim_x(n)
+y = sim_y(x,sd)
+data_train = tibble(x,y)
+
+ggplotCanv = ggplot(data_train, aes(x,y)) + geom_point() + stat_function(fun = yfunc,aes(colour = "trueReg"))  + 
+  scale_color_discrete(name="model")
+
+ggplotCanv
+```
+
+
+
+
+## c. Fit three polynomial regression models using least squares: linear, quadratic, and cubic. Produce another scatterplot, add the fitted lines and true population line $f(x)$  using different colors, and add a legend that maps the line color to a model.
+- Note: The true model is quadratic, but we are also fitting linear (less complex) and cubic (more complex) models. 
+
+
+### {.solution}
+
+Add solution here
+```{r}
+
+ggplotCanv + 
+  geom_smooth(method = "lm",formula = "y~x", se=FALSE, aes(color ="linear"))+
+  geom_smooth(method = "lm",formula = "y~poly(x,2)", se=FALSE, aes(color ="quadrotic"))+
+  geom_smooth(method = "lm",formula = "y~poly(x,3)", se=FALSE, aes(color ="cubic")) 
+
+```
+
+
+## d. Simulate a *test data* set of 10,000 observations from the same distributions. Use `set.seed(612)` prior to generating the test data.   
+- Calculate the estimated mean squared error (MSE) for each model. 
+- Are the results as expected? 
+
+### {.solution}
+
+Add solution here
+```{r}
+set.seed(612)
+n = 10000
+
+xtest = sim_x(n)
+ytest = sim_y(xtest,sd)
+data_test  = tibble(x = xtest, y= ytest)
+
+polytrain_evl <- function(deg, data_train, data_test){
+  if(deg==0) m = lm(y~yfunc(x), data=data_train)  # intercept only model
+  else m = lm(y~poly(x, degree=deg), data=data_train) # polynomial
+  yhat = predict(m,newdata = data_test)
+  mean((data_test$y - yhat)^2)
+}
+
+msep1 = polytrain_evl(1,data_train,data_test)
+msep2 = polytrain_evl(2,data_train,data_test)
+msep3 = polytrain_evl(3,data_train,data_test)
+
+ModelMSE = tribble(~model,~MSE,
+                    "linear",msep1,
+                    "quadratic",msep2,
+                    "cubic",msep3)
+```
+- Calculate the estimated mean squared error (MSE) for each model. 
+```{r}
+library(knitr)
+kable(ModelMSE)
+```
+- Are the results as expected? 
+
+No. I would expect the quadraric model behave the best and gives the smallest MSE, whileas in the test, linear model gives the best MSE. 
+
+
+
+## e. What is the best achievable MSE? That is, what is the MSE if the true $f(x)$ was used to evaluate the test set? How close does the best method come to achieving the optimum? 
+
+
+### {.solution}
+
+Add solution here
+```{r}
+
+ytrue = yfunc(xtest)
+bestMSEval = mean((ytrue-ytest)^2)
+
+bestMSE = tribble( ~model, ~MSE,
+  "Best MSE",bestMSEval)
+
+kable(bestMSE)
+```
+Compare with the best MSE $8.972$, the linear model($9.294$) behave the best. 
+
+
+## f. The MSE scores obtained in part *d* came from one realization of training data. Here will we explore how much variation there is in the MSE scores by replicating the simulation many times. 
+- Re-run the same simulation in part *d* 100 times. 
+- Create kernel density or histogram plots of the resulting MSE values for each model. 
+- Use `set.seed(613)` prior to running the simulation and do not set the seed in any other places.
+
+
+### {.solution}
+
+Add solution here
+```{r}
+
+set.seed(613)
+sd = 3
+repeatTimes = 100
+train_n = 100
+test_n = 10000
+# 
+# # each time need to regenerate the dataset again
+data_poly = tibble(deg=str_c(),mse=numeric())
+# 
+modelCounter = numeric(length = 3)
+# 
+for (rep  in c(1:repeatTimes)) {
+  data_train = dataSet(train_n,sd)
+  data_test  = dataSet(test_n,sd)
+  res <- numeric(length = 3)
+  for (deg in c(1,2,3)) {
+      newmse = polytrain_evl(deg,data_train = data_train, data_test = data_test)
+      res[deg]<-newmse
+      if (deg == 1) {
+        degStr = "linear"
+      }else if (deg == 2){
+        degStr = "quadrotic"
+      }else if (deg == 3){
+        degStr = "cubic"
+      }
+      data_poly = add_row(data_poly,deg=degStr,mse = newmse)
+  }
+  modelCounter[which.min(res)] = modelCounter[which.min(res)]+1
+}
+
+best_Model = tribble(~model,~count,
+                    "linear",modelCounter[1],
+                    "quadratic",modelCounter[2],
+                    "cubic",modelCounter[3])
+
+p1 <- ggplot(data = data_poly, aes(x=mse,color=deg))+geom_density()
+
+# p2 <-  ggplot(data=data_poly, aes(x=mse, group=deg, color = deg)) +
+#     geom_density() +facet_grid(deg ~ .) 
+# 
+# grid.arrange(p1,p2)
+p1
+```
+
+
+## g. Show a count of how many times each model was the best. That is, out of the 100 simulations, count how many times each model had the lowest MSE.
+
+### {.solution}
+
+Add solution here
+```{r echo=FALSE}
+
+kable(best_Model)
+```
+
+
+## h. Repeat the simulation in part *f*, but use $\sigma=2$. Report the number of times each model was best (you do not need to produce any plots). Use the same `set.seed(613)` prior to running the simulation and do not set the seed in any other places.
+
+
+### {.solution}
+
+Add solution here
+```{r}
+set.seed(613)
+sd = 2
+repeatTimes = 100
+train_n = 100
+test_n = 10000
+# 
+# # each time need to regenerate the dataset again
+data_poly = tibble(deg=str_c(),mse=numeric())
+# 
+modelCounter = numeric(length = 3)
+# 
+for (rep  in c(1:100)) {
+  data_train = dataSet(train_n,sd)
+  data_test  = dataSet(test_n,sd)
+  res <- numeric(length = 3)
+  for (deg in c(1,2,3)) {
+      newmse = polytrain_evl(deg,data_train = data_train, data_test = data_test)
+      res[deg]<-newmse
+      if (deg == 1) {
+        degStr = "linear"
+      }else if (deg == 2){
+        degStr = "quadrotic"
+      }else if (deg == 3){
+        degStr = "cubic"
+      }
+      data_poly = add_row(data_poly,deg=degStr,mse = newmse)
+  }
+  modelCounter[which.min(res)] = modelCounter[which.min(res)]+1
+}
+
+p3 <- ggplot(data = data_poly, aes(x=mse,color=deg))+geom_density()
+
+best_Model = tribble(~model,~count,
+                    "linear",modelCounter[1],
+                    "quadratic",modelCounter[2],
+                    "cubic",modelCounter[3])
+p3
+kable(best_Model)
+```
+
+
+
+## i. Repeat *h*, but now use $\sigma=4$ and $n=200$. 
+
+### {.solution}
+
+Add solution here
+```{r}
+set.seed(613)
+sd = 4
+repeatTimes = 100
+train_n = 200
+test_n = 10000
+# 
+# # each time need to regenerate the dataset again
+data_poly = tibble(deg=str_c(),mse=numeric())
+# 
+modelCounter = numeric(length = 3)
+# 
+for (rep  in c(1:100)) {
+  data_train = dataSet(train_n,sd)
+  data_test  = dataSet(test_n,sd)
+  res <- numeric(length = 3)
+  for (deg in c(1,2,3)) {
+      newmse = polytrain_evl(deg,data_train = data_train, data_test = data_test)
+      res[deg]<-newmse
+      if (deg == 1) {
+        degStr = "linear"
+      }else if (deg == 2){
+        degStr = "quadrotic"
+      }else if (deg == 3){
+        degStr = "cubic"
+      }
+      data_poly = add_row(data_poly,deg=degStr,mse = newmse)
+  }
+  modelCounter[which.min(res)] = modelCounter[which.min(res)]+1
+}
+
+p4 <- ggplot(data = data_poly, aes(x=mse,color=deg))+geom_density() #+ xlim(8,11.5)
+
+# ggplot(data=data_poly, aes(x=mse, group=deg, color = deg)) +
+#     geom_density() +facet_grid(deg ~ .) #+ xlim(8.5,11.5)
+best_Model = tribble(~model,~count,
+                    "linear",modelCounter[1],
+                    "quadratic",modelCounter[2],
+                    "cubic",modelCounter[3])
+p4
+kable(best_Model)
+```
+
+
+## j. Describe the effects $\sigma$ and $n$ has on selection of the best model? Why is the *true* model form (i.e., quadratic) not always the *best* model to use when prediction is the goal? 
+
+### {.solution}
+
+Add solution here
+
+```{r}
+# two plot, first draw model vs. sigma
+# model vs. sigma 
+
+trainmse_eval <- function(seed, sigma, train_n, test_n, repeatTimes){
+  set.seed(seed)
+  sd = sigma
+  modelCounter = numeric(length = 3)
+  for (rep in c(1:100)) {
+    data_train = dataSet(train_n,sigma)
+    data_test  = dataSet(test_n,sigma)
+    res <- numeric(length = 3)
+    for(deg in c(1,2,3)){
+     newmse = polytrain_evl(deg,data_train = data_train, data_test = data_test)
+     res[deg]<-newmse
+    }
+    modelCounter[which.min(res)] = modelCounter[which.min(res)]+1
+  }
+  tibble(seed=seed,sd = sigma, train_n = train_n, test_n = test_n, bestmodel=which.max(modelCounter),count.linear = modelCounter[1],count.quadratic = modelCounter[2],count.cubic =modelCounter[3])
+}
+
+data_sigma_scan = tibble()
+
+for (sigma in seq(0.3,7.2,by=0.3)) {
+  tmp = trainmse_eval(seed = 613, sigma = sigma, train_n = 100, test_n = 10000, repeatTimes = 100)
+  data_sigma_scan = bind_rows(data_sigma_scan,tmp)
+}
+# data_sigma_scan
+
+data_sigma_scan %>%
+  pivot_longer(starts_with("count"),names_to = "data",values_to = "count") %>%
+  mutate(data = str_remove(data, "count\\.")) %>%
+  ggplot(aes(sd, count, color=data)) + geom_line() + geom_point() +
+  labs(title="Count Best Model vs. sigma", x = 'sigma', y="count") ##
+
+
+```
+
+- Describe the effects σ has on selection of the best model?
+
+From the above plot, we can see, when $\sigma$ increase, the true model form (quadratic) becomes less and less likely to be the best model, instead, the linear model tend more and more likely to be the best. 
+
+```{r}
+
+
+data_n_scan = tibble()
+for (n in c(1:9 %o% 10^(1:3))) {
+  tmp = trainmse_eval(seed=613,sigma=3,train_n = n,test_n = 10000, repeatTimes = 100)
+  data_n_scan = bind_rows(data_n_scan,tmp)
+}
+
+data_n_scan %>%
+  pivot_longer(starts_with("count"),names_to = "data",values_to = "count") %>%
+  mutate(data = str_remove(data, "count\\.")) %>%
+  ggplot(aes(train_n, count, color=data)) + geom_line() + geom_point() +
+  labs(title="Count Best Model vs. n", x = 'n', y="count") +
+  coord_trans(x="log10")
+```
+
+- Describe the effects n has on selection of the best model?
+
+When $n$ is small(less than 60) linear model is more likely to be the best, when $n$ goes larger, quadratic model becomes the best model. When $n$ is small, there is few data points used in the training, in this case, the model can not converge well and linear tend to beat the the quadratic model. In this case the model is not trustable. When $n$ goes larger, the choose of the model will becomes more reliable. 
+
+- Why is the true model form (i.e., quadratic) not always the best model to use when prediction is the goal?
+
+For a given $\sigma$, when $n$ is small, there is no enough data point to train our model. For give $n$ (enough for a meaningfull training), the initial  function only have range of $(0,-1) x\in (0,1)$, when $\sigma$ becomes larger, the random error part will dominate. In y dimension, it is more likely to be a random normal distribution through out the x range $(0,1)$ which makes the linear model better. 
+
+
+
