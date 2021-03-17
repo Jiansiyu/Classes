@@ -1,0 +1,734 @@
+---
+title: "Exam I"
+author: "**Siyu Jian/ sj9va**"
+date: "Due: Wed Mar 17 10:55am"
+output: R6018::homework
+---
+
+**SYS 4582/6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+<div style="background-color:lightgrey; display: block; border-color: black; padding:1em">
+
+- You may **not** discuss this exam with anyone else (besides teaching staff). All work must be done independently. You may consult textbooks, online material, etc. but any outside resource must be cited.
+    - Add an informal reference (e.g., url, book title) to any source consulted for each problem. 
+    - You may reuse code from my class materials/homework solutions, just make a note that you did so. 
+
+- Unless otherwise noted, all referenced datasets will be found at directory `https://https://mdporter.github.io/SYS6018/data`. In R, the path to these files can be obtained by
+```{r, eval=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data'
+file.path(data.dir, "filename.ext")
+```
+
+</div>
+
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data/' # data directory
+library(glmnet)    # functions for penalized GLM
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation   
+library(readr)
+library(glmnetUtils) 
+```
+
+
+# Problem 1 (16 pts): Human Activity Recognition 
+
+
+A current engineering challenge is to identify/classify human activity (e.g., walking, in car, on bike, eating, smoking, falling) from smartphones and other wearable devices. 
+More specifically, the embedded sensors (e.g., accelerometers and gyroscopes) produce a time series of position, velocity, and acceleration measurements. These time series are then processed to produce a set of *features* that can be used for activity recognition. In this problem, you will use supervised learning methods to classify observations into one of six categories: Walking (1), Walking upstairs (2), walking downstairs (3), Sitting (4), Standing (5), and Laying Down (6).  
+
+For those with interest, the details of the data collection process and features can be found in this [paper](https://www.elen.ucl.ac.be/Proceedings/esann/esannpdf/es2013-84.pdf). The performance of the support vector machine (SVN) classifier used in the paper is given in Table 4 (shown here):
+```{r, echo=FALSE, out.width="50%", fig.align='center'}
+knitr::include_graphics(file.path(data.dir, "../other/HAR-table.png"))
+```
+
+
+## a. Load the training and test data.
+
+- Training Data: [activity_train.csv](https://mdporter.github.io/SYS6018/data/activity_train.csv)
+- Testing Data: [activity_test.csv](https://mdporter.github.io/SYS6018/data/activity_test.csv)
+- The first column are the labels and the remaining columns are the 561 predictor variables
+- Assume 1 = WK, 2 = WU, ... 6 = LD. 
+
+### {.solution}
+
+Add Solution Here
+```{r message=FALSE}
+
+set.seed(200)
+train_url = "https://mdporter.github.io/SYS6018/data/activity_train.csv"
+test_url  = "https://mdporter.github.io/SYS6018/data/activity_test.csv"
+
+train_reader = readr::read_csv(train_url)
+test_reader = readr::read_csv(test_url)
+
+train_X = train_reader %>% select(-y)
+train_y = train_reader %>% select(y)
+
+test_X = test_reader %>% select(-y)
+test_y = test_reader %>% select(y)
+
+#train_X
+
+```
+
+
+## b. Linear Discriminant Analysis (LDA) 
+
+Run Linear Discriminant Analysis (LDA), using all of the features, make predictions for the test set and construct a confusion matrix like Table 4 of the paper (you don't have to include Recall and Precision). 
+
+- Provide your code
+- Ensure the table has the correct order of rows/columns (the names don't have be used)
+- See ISLR 4.4 and 4.6.3 for more details on LDA and how to implement in R
+
+### {.solution}
+
+```{r}
+
+fit.lda = MASS::lda(y~.,train_reader)
+
+fit.lda.pred = predict(fit.lda,test_reader%>% select(-y))
+
+fit.lda.pred.classes = fit.lda.pred$class
+observed.class = test_reader$y
+
+accuracy <- mean(observed.class == fit.lda.pred.classes)
+
+tableRes = table(observed.class,fit.lda.pred.classes)
+
+tableRes <- cbind(tableRes,recall = tableRes %>% diag()/tableRes %>% rowSums(tableRes))
+tableRes <- rbind(tableRes,accuracy = tableRes %>% diag()/tableRes %>% colSums(tableRes))
+tableRes[7,7] = mean(observed.class == fit.lda.pred.classes)
+
+colnames(tableRes) = c("WK","WU","WD","ST","SD","LD","recall")
+rownames(tableRes) = c("Walking","W.Upstairs","W.Downstairs","Sitting","Standing","Laying Down","Precision")
+
+tableRes
+```
+
+
+## c. LDA Performance
+
+How well did LDA do compared to the method employed in the paper? 
+
+- Discuss total Accuracy, Precision, and Recall. 
+
+### {.solution}
+```{r  warning=FALSE}
+tableRes
+
+```
+Compare with the data in the paper, the overall precision are the sample. For recall result, LDA model have better result in **W.Upstairs** have better result. **W.Downstairs** and **Standing** have little worse result. For the result of them, the result almost the same. 
+
+In the Precision, "WK","WD","LD" have same or better precision, for the reset, the LDA result is slitely worse.
+
+Although there is a difference in the precision and the recall, the difference is very small. 
+
+
+# Problem 2 (17 pts): One vs. Rest Classification for multi-class problems
+
+In LDA, it is straightforward to fit a model with more than two classes. Other methods, like Logistic Regression, are designed to deal with response variables that take only two values. However we can still use binary classifiers for a multi-class problems. One approach, called *one-vs-rest* is the easiest to implement (<https://en.wikipedia.org/wiki/Multiclass_classification>, and see ISL 9.4.2).
+
+For response variables that take K values, K models will be fit. Model 1 will be fit to discriminant class $1$ from all the other classes ($\{2,\ldots, K\}$). Model 2 will be fit to discriminate class $2$ from all the other classes ($\{1, 3, 4, \ldots, K\}$), etc. The estimated class for observation $Y_i$ is the one receiving the highest probability score (this assumes equal costs of mis-classification).
+
+Details: To fit model $k$ on the training data, code $Y=1$ if the label is $k$ and $Y=0$ if the label is not $k$ (thus comparing class $k$ vs all the rest). Then on the test data, calculate $\hat{p}_k(x_i)$, the estimated probability that $Y = 1$ according to model $k$. The estimated class label for test observation $i$ is $\arg\max_{1\leq k \leq K} \hat{p}_k(x_i)$. 
+
+
+
+## a. One-vs-Rest
+
+Implement the *one-vs-rest* procedure using penalized logistic regression (i.e., lasso, ridge, or elasticnet) on the HAR data from problem 1. 
+
+- Describe how you selected $\alpha$ and $\lambda$ (many correct ways to do this)
+- Construct a confusion matrix like Table 4 of the paper (you don't have to include Recall and Precision). 
+- Provide your code
+- Note: this may take a long time (e.g., 20 mins) to run. Consider setting `cache = TRUE` in your code chunk to prevent re-running every time you compile.
+
+
+### {.solution}
+
+Add Solution Here
+```{r }
+set.seed(221)
+n_classes = nrow(unique(train_y))  # get the number of classes
+trainedMode=tibble()
+
+alpha = 0.8
+model.list = list()
+ptm <- proc.time()
+for (classIndex in 1:n_classes){
+  train_y_class = ifelse(train_y$y == classIndex,1,0)
+  model.list[[classIndex]] = cv.glmnet(as.matrix(train_X),as.matrix(train_y_class),alpha = alpha,family = "binomial")
+}
+proc.time() - ptm
+```
+
+```{r warning=FALSE}
+## a how to 
+## idea, need to find the maximum possibility  of the 6, and set the number to be the prediction 
+# make prediction and add to tibble
+
+test.Pred.list = tibble()
+
+## need a better way to do that 
+phat.fit1 = predict(model.list[[1]],as.matrix(test_X), s="lambda.min",type="response")
+phat.fit2 = predict(model.list[[2]],as.matrix(test_X), s="lambda.min",type="response")
+phat.fit3 = predict(model.list[[3]],as.matrix(test_X), s="lambda.min",type="response")
+phat.fit4 = predict(model.list[[4]],as.matrix(test_X), s="lambda.min",type="response")
+phat.fit5 = predict(model.list[[5]],as.matrix(test_X), s="lambda.min",type="response")
+phat.fit6 = predict(model.list[[6]],as.matrix(test_X), s="lambda.min",type="response")
+test.Pred.list = bind_rows(test.Pred.list,tibble(phat.fit1,phat.fit2,phat.fit3,phat.fit4,phat.fit5,phat.fit6))
+# make predictions on the test dataset
+test.Pred.val  = cbind(max.col(test.Pred.list,"first"))
+
+
+test.Pred.tableRes = table(observed.class,test.Pred.val)
+
+test.Pred.tableRes <- cbind(test.Pred.tableRes,recall = test.Pred.tableRes %>% diag()/test.Pred.tableRes %>% rowSums(test.Pred.tableRes))
+test.Pred.tableRes <- rbind(test.Pred.tableRes,accuracy = test.Pred.tableRes %>% diag()/test.Pred.tableRes %>% colSums(test.Pred.tableRes))
+test.Pred.tableRes[7,7] = mean(test.Pred.val == fit.lda.pred.classes)
+
+colnames(test.Pred.tableRes) = c("WK","WU","WD","ST","SD","LD","recall")
+rownames(test.Pred.tableRes) = c("Walking","W.Upstairs","W.Downstairs","Sitting","Standing","Laying Down","Precision")
+
+test.Pred.tableRes
+
+
+```
+
+## b. One-vs-Rest Performance
+
+How does this approach compare to LDA and the method employed in the paper? Discuss total Accuracy, Precision, and Recall. 
+
+### {.solution}
+
+Add Solution Here
+
+
+# Problem 3 (17 pts): S\&P 500
+
+The S\&P 500 stock index measures the stock performance of 500 large companies listed on stock exchanges in the United States. The data [SP500.csv](https://mdporter.github.io/SYS6018/data/SP500.csv) contain the daily percentage returns between Feb 2016 and March 2021. Use the predictors `lag1` through `lag5` (`lagX` is percentage return X days in the past) to predict the `direction` of the index (`up` or `down`). 
+
+This problem will explore a variety of re-sampling methods to evaluate the tuning parameter $\lambda$ in Lasso Logistic Regression. 
+
+
+## a. 60-fold cross-validation 
+
+Use 60-fold cross-validation to assess performance.
+
+i. Produce a plot of *binomial deviance* as a function of $\lambda$. 
+    - Note: *binomial deviance* is the default loss when `family = "binomial"`. 
+ii. Produce a plot of *mis-classification rate* as a function of $\lambda$. Use a threshold of $\hat{p} = 1/2$. 
+iii. Report the $\lambda$ values that minimize the metrics. 
+
+
+### {.solution}
+
+```{r message=FALSE}
+sp500_url = "https://mdporter.github.io/SYS6018/data/SP500.csv"
+sp500_reader = readr::read_csv(sp500_url)
+sp500_reader = sp500_reader %>% mutate(direction = ifelse(direction == "up", 1L,0L))
+
+sp500_data = model.matrix(~0 + direction + lag1 + lag2 + lag3 + lag4 + lag5, data = sp500_reader) %>% as_data_frame()
+
+set.seed(2020)
+n.fold = 60
+fold = sample(rep(1:n.fold, length = nrow(sp500_data)))
+sp500.fit = cv.glmnet(direction ~ lag1 + lag2 + lag3 + lag4 + lag5, data = sp500_data,foldid = fold, family = "binomial")
+
+plot(sp500.fit)
+
+```
+$\lambda$  that minimize the Binomial Deviance
+```{r}
+report.3a.lambda = sp500.fit$lambda[sp500.fit$cvm == min(sp500.fit$cvm)]
+report.3a.temp = tibble(lambda = report.3a.lambda, log.lambda = log(report.3a.lambda), Binomial_Deviance = min(sp500.fit$cvm))
+report.3a.temp %>% knitr::kable()
+```
+
+```{r}
+# 
+set.seed(2021)
+
+sp500.thres = 0.5
+sp500.cvRes = tibble(lambda=numeric(), mcRate = numeric())
+
+sp500.fit.3a2 = cv.glmnet(direction ~ lag1 + lag2 + lag3 + lag4 + lag5, data = sp500_data,foldid = fold, family = "binomial",type.measure = "class")
+
+plot(sp500.fit.3a2)
+
+
+```
+$\lambda$  that minimize the Misclassification Error
+```{r}
+report.3a2.lambda = sp500.fit.3a2$lambda[sp500.fit.3a2$cvm == min(sp500.fit.3a2$cvm)]
+report.3a2.temp = tibble(lambda = report.3a2.lambda, log.lambda = log(report.3a2.lambda), Missclassification.Error = min(sp500.fit.3a2$cvm))
+report.3a2.temp %>% knitr::kable()
+```
+
+
+## b. 10-fold cross-validation repeated 6 times
+
+Repeat 10-fold cross-validation 6 times to assess performance.
+
+i. Produce a plot of *binomial deviance* as a function of $\lambda$. 
+    - Note: *binomial deviance* is the default loss when `family = "binomial"`. 
+ii. Produce a plot of *mis-classification rate* as a function of $\lambda$. Use a threshold of $\hat{p} = 1/2$. 
+iii. Report the $\lambda$ values that minimize the metrics. 
+
+
+### {.solution}
+
+Add Solution Here
+
+```{r}
+set.seed(2000)
+steps = 6   # 6 times cv
+n.fold = 10   # cv fold 
+
+sp500.3b.cvRes = tibble(step = numeric(),name = str_c(), lambda = numeric(),biodev = numeric(),missclass = numeric())
+
+
+for (step in 1:steps){
+  fold = sample(rep(1:n.fold,length = nrow(sp500_data)))
+
+  # prepare the training dataset
+  trainX = sp500_data %>% select(-direction)
+  trainy = sp500_data %>% select(direction)
+  
+  sp500.step.fit.biodev  = cv.glmnet(as.matrix(trainX),as.matrix(trainy),foldid = fold, family = "binomial")
+  sp500.step.fit.misclass  = cv.glmnet(as.matrix(trainX),as.matrix(trainy),foldid = fold, family = "binomial",type.measure = "class")
+  
+  #access the information
+  sp500.3b.cvRes = bind_rows(sp500.3b.cvRes,
+                             tibble(step = step, 
+                                    name = sp500.step.fit.biodev$name,
+                                    lambda = sp500.step.fit.biodev$lambda,
+                                    biodev = sp500.step.fit.biodev$cvm))
+  
+  sp500.3b.cvRes = bind_rows(sp500.3b.cvRes, 
+                             tibble(step= step, 
+                                    name = sp500.step.fit.misclass$name, 
+                                    lambda = sp500.step.fit.misclass$lambda, 
+                                    missclass = sp500.step.fit.misclass$cvm))
+
+}
+
+sp500.3b.cvRes %>%
+  filter(.$name == unique(sp500.3b.cvRes$name)[1]) %>%
+  group_by(lambda) %>%
+  summarise(mean = mean(biodev)) %>%
+  ggplot(aes(x=lambda,y=mean))  + geom_smooth() + geom_point() + 
+  ylab(unique(sp500.3b.cvRes$name)[1]) +  
+  geom_point(data=. %>% filter(mean==min(mean)), color="red", size=3) 
+  
+```
+$\lambda$ that minimized the Binomial Deviance 
+```{r}
+sp500.3b.cvRes %>%
+  filter(.$name == unique(sp500.3b.cvRes$name)[1]) %>%
+  group_by(lambda) %>%
+  summarise(mean_deviance = mean(biodev)) %>%
+  filter(mean_deviance == min(mean_deviance)) %>% knitr::kable()
+```
+```{r}
+sp500.3b.cvRes %>%
+  filter(.$name == unique(sp500.3b.cvRes$name)[2]) %>%
+  group_by(lambda) %>%
+  summarise(mean = mean(missclass)) %>%
+  ggplot(aes(x=lambda,y=mean))  + geom_smooth() + geom_point() + 
+  ylab(unique(sp500.3b.cvRes$name)[2]) +  
+  geom_point(data=. %>% filter(mean==min(mean)), color="red", size=3) 
+```
+$\lambda$ that minimized the Missclassification Error
+```{r}
+
+sp500.3b.cvRes %>%
+  filter(.$name == unique(sp500.3b.cvRes$name)[2]) %>%
+  group_by(lambda) %>%
+  summarise(mean_missclassification = mean(missclass)) %>%
+  filter(mean_missclassification == min(mean_missclassification)) %>% knitr::kable()
+```
+
+
+## c. 5-fold cross-validation repeated 12 times
+
+Repeat 5-fold cross-validation 12 times to assess performance.
+
+i. Produce a plot of *binomial deviance* as a function of $\lambda$. 
+    - Note: *binomial deviance* is the default loss when `family = "binomial"`. 
+ii. Produce a plot of *mis-classification rate* as a function of $\lambda$. Use a threshold of $\hat{p} = 1/2$. 
+iii. Report the $\lambda$ values that minimize the metrics. 
+
+### {.solution}
+
+```{r}
+set.seed(123)
+n.fold = 5
+steps = 12
+
+sp500.3c.cvRes = tibble(step = numeric(),name = str_c(), lambda = numeric(),biodev = numeric(),missclass = numeric())
+
+for (step in 1:steps) {
+  fold = sample(rep(1:n.fold,length = nrow(sp500_data)))
+
+  # prepare the training dataset
+  trainX = sp500_data %>% select(-direction)
+  trainy = sp500_data %>% select(direction)
+  
+  # start the fit and get the val 
+  sp500.step.fit.biodev  = cv.glmnet(as.matrix(trainX),as.matrix(trainy),foldid = fold, family = "binomial")
+  sp500.step.fit.misclass  = cv.glmnet(as.matrix(trainX),as.matrix(trainy),foldid = fold, family = "binomial",type.measure = "class")
+  
+  
+  #access the information
+  sp500.3c.cvRes = bind_rows(sp500.3c.cvRes,
+                             tibble(step = step, 
+                                    name = sp500.step.fit.biodev$name,
+                                    lambda = sp500.step.fit.biodev$lambda,
+                                    biodev = sp500.step.fit.biodev$cvm))
+  
+  sp500.3c.cvRes = bind_rows(sp500.3c.cvRes, 
+                             tibble(step= step, 
+                                    name = sp500.step.fit.misclass$name, 
+                                    lambda = sp500.step.fit.misclass$lambda, 
+                                    missclass = sp500.step.fit.misclass$cvm))
+  
+}
+
+sp500.3c.cvRes %>%
+  filter(.$name == unique(sp500.3c.cvRes$name)[1]) %>%
+  group_by(lambda) %>%
+  summarise(mean = mean(biodev)) %>%
+  ggplot(aes(x=lambda,y=mean))  + geom_smooth() + geom_point() + 
+  ylab(unique(sp500.3c.cvRes$name)[1]) +  
+  geom_point(data=. %>% filter(mean==min(mean)), color="red", size=3) 
+
+```
+$\lambda$ that minimized the Binomial Deviance
+```{r}
+sp500.3c.cvRes %>%
+  filter(.$name == unique(sp500.3c.cvRes$name)[1]) %>%
+  group_by(lambda) %>%
+  summarise(mean_deviance = mean(biodev)) %>%
+  filter(mean_deviance == min(mean_deviance)) %>% knitr::kable()
+```
+
+```{r}
+sp500.3c.cvRes %>%
+  filter(.$name == unique(sp500.3c.cvRes$name)[2]) %>%
+  group_by(lambda) %>%
+  summarise(mean = mean(missclass)) %>%
+  ggplot(aes(x=lambda,y=mean))  + geom_smooth() + geom_point() + 
+  ylab(unique(sp500.3c.cvRes$name)[2]) +  
+  geom_point(data=. %>% filter(mean==min(mean)), color="red", size=3) 
+
+```
+$\lambda$ that minimized the Missclassification Error
+```{r}
+sp500.3c.cvRes %>%
+  filter(.$name == unique(sp500.3c.cvRes$name)[2]) %>%
+  group_by(lambda) %>%
+  summarise(Missclassification = mean(missclass)) %>%
+  filter(Missclassification == min(Missclassification)) %>% knitr::kable()
+```
+
+
+## d. 3-fold cross-validation repeated 20 times
+
+Repeat 3-fold cross-validation 20 times to assess performance.
+
+i. Produce a plot of *binomial deviance* as a function of $\lambda$. 
+    - Note: *binomial deviance* is the default loss when `family = "binomial"`. 
+ii. Produce a plot of *mis-classification rate* as a function of $\lambda$. Use a threshold of $\hat{p} = 1/2$. 
+iii. Report the $\lambda$ values that minimize the metrics. 
+
+### {.solution}
+
+```{r}
+
+n.fold = 3
+steps = 20
+
+sp500.3d.cvRes = tibble(step = numeric(),name = str_c(), lambda = numeric(),biodev = numeric(),missclass = numeric())
+
+for (step in 1:steps) {
+  fold = sample(rep(1:n.fold,length = nrow(sp500_data)))
+
+  # prepare the training dataset
+  trainX = sp500_data %>% select(-direction)
+  trainy = sp500_data %>% select(direction)
+  
+  # start the fit and get the val 
+  sp500.step.fit.biodev  = cv.glmnet(as.matrix(trainX),as.matrix(trainy),foldid = fold, family = "binomial")
+  sp500.step.fit.misclass  = cv.glmnet(as.matrix(trainX),as.matrix(trainy),foldid = fold, family = "binomial",type.measure = "class")
+  
+  
+  #access the information
+  sp500.3d.cvRes = bind_rows(sp500.3d.cvRes,
+                             tibble(step = step, 
+                                    name = sp500.step.fit.biodev$name,
+                                    lambda = sp500.step.fit.biodev$lambda,
+                                    biodev = sp500.step.fit.biodev$cvm))
+  
+  sp500.3d.cvRes = bind_rows(sp500.3d.cvRes, 
+                             tibble(step= step, 
+                                    name = sp500.step.fit.misclass$name, 
+                                    lambda = sp500.step.fit.misclass$lambda, 
+                                    missclass = sp500.step.fit.misclass$cvm))
+  
+}
+
+
+sp500.3d.cvRes %>%
+  filter(.$name == unique(.$name)[1]) %>%
+  group_by(lambda) %>%
+  summarise(mean = mean(biodev)) %>%
+  ggplot(aes(x=lambda,y=mean))  + geom_smooth() + geom_point() + 
+  ylab(unique(sp500.3c.cvRes$name)[1]) +  
+  geom_point(data=. %>% filter(mean==min(mean)), color="red", size=3) 
+```
+$\lambda$ that minimized the Binomial Deviance
+```{r}
+sp500.3d.cvRes %>%
+  filter(.$name == unique(.$name)[1]) %>%
+  group_by(lambda) %>%
+  summarise(mean_deviance = mean(biodev)) %>%
+  filter(mean_deviance == min(mean_deviance)) %>% knitr::kable()
+
+```
+
+```{r}
+sp500.3d.cvRes %>%
+  filter(.$name == unique(.$name)[2]) %>%
+  group_by(lambda) %>%
+  summarise(mean = mean(missclass)) %>%
+  ggplot(aes(x=lambda,y=mean))  + geom_smooth() + geom_point() + 
+  ylab(unique(sp500.3c.cvRes$name)[2]) +  
+  geom_point(data=. %>% filter(mean==min(mean)), color="red", size=3) 
+```
+$\lambda$ that minimized the Missclassification Error
+```{r}
+sp500.3d.cvRes %>%
+  filter(.$name == unique(.$name)[2]) %>%
+  group_by(lambda) %>%
+  summarise(missclassification = mean(missclass)) %>%
+  filter(missclassification == min(missclassification)) %>% knitr::kable()
+```
+
+
+
+## e. Monte Carlo cross-validation (i.e., repeated hold-outs) Repeated 60 times. 
+
+Repeat Monte Carlo cross-validation (repeated hold-outs) 60 times to assess performance. Hold-out 1/10 of the data.
+
+i. Produce a plot of *binomial deviance* as a function of $\lambda$. 
+    - Note: *binomial deviance* is the default loss when `family = "binomial"`. 
+ii. Produce a plot of *mis-classification rate* as a function of $\lambda$. Use a threshold of $\hat{p} = 1/2$. 
+iii. Report the $\lambda$ values that minimize the metrics.
+iv. **Compare this approach with the 10-fold cross-validation used part b. How are they different? How are they similar?**
+
+Note: the function `assess.glmnet()` from the `glmnet` package will provide the *deviance* and *class* metrics. 
+
+
+### {.solution}
+
+```{r}
+set.seed(1234)
+
+steps = 60
+holdout = round(0.1*nrow(sp500_data))
+
+sp500.3e.cvRes = tibble(step = numeric(), lambda = numeric(), biodev = numeric(),misclass = numeric())
+
+# amoung different runs, the lambda list would be different if use the default value 
+# pretrain the model , just get the lambda list that used in the first training process 
+# the following training would use the sample lambda set as this one 
+# just used for get the lambda array
+temp.train = sample(nrow(sp500_data),size = holdout)
+temp.dataSet_train = sp500_data[temp.train,]
+temp.train_X = temp.dataSet_train %>% select(-direction)
+temp.train_y = temp.dataSet_train %>% select(direction)
+temp.sp500.fit.step = glmnet(as.matrix(temp.train_X),as.matrix(temp.train_y),alpha  = 1, family = "binomial")
+lambda.list = temp.sp500.fit.step$lambda
+
+
+for (step in 1:steps){
+  test = sample(nrow(sp500_data),size = holdout)
+  train = - test
+  dataSet_train = sp500_data[train,]
+  train_X = dataSet_train %>% select(-direction)
+  train_y = dataSet_train %>% select(direction)
+  
+  dataSet_test = sp500_data[test,]
+  test_X = dataSet_test %>% select(-direction)
+  test_y = dataSet_test %>% select(direction)
+
+  # train the model and get the paras 
+  sp500.fit.step = glmnet(as.matrix(train_X),as.matrix(train_y),alpha  = 1,lambda = lambda.list, family = "binomial")
+  sp500.fit.inf = assess.glmnet(sp500.fit.step,as.matrix(test_X),as.matrix(test_y),family = "binomial")
+  
+  sp500.3e.cvRes = bind_rows(sp500.3e.cvRes, tibble(step = step,lambda = sp500.fit.step$lambda,biodev = sp500.fit.inf$deviance, misclass= sp500.fit.inf$class))
+  # print(sp500.fit.step$lambda)
+  # print(sp500.fit.inf$deviance)
+  # print(sp500.fit.inf$class)
+  # print(sp500.3e.cvRes)
+}
+
+
+sp500.3e.cvRes.biodev = sp500.3e.cvRes %>%
+                            group_by(lambda) %>%
+                            summarise(biodev = mean(biodev))
+
+sp500.3e.cvRes.missclass = sp500.3e.cvRes %>%
+                            group_by(lambda) %>%
+                            summarise(missclass = mean(misclass))
+
+# get the mean value on each lambda value aka. take the average of each lambda 
+
+
+sp500.3e.cvRes.biodev %>%
+  ggplot(aes(x=lambda,y=biodev)) + geom_smooth() + geom_point() +
+  ylab("Binomial Deviance") +
+  geom_point(data=. %>% filter(biodev==min(biodev)), color="red", size=3) 
+
+
+```
+$\lambda$ used minimize the binomial Deviance
+```{r}
+sp500.3e.cvRes.biodev %>%
+  filter(.$biodev == min(biodev)) %>%
+  knitr::kable()
+```
+
+```{r}
+sp500.3e.cvRes.missclass %>%
+  ggplot(aes(x=lambda,y=missclass)) + geom_smooth() + geom_point() +
+  ylab("Missclassification Error")
+```
+
+$\lambda$ used minimize the Missclassification Error
+```{r}
+sp500.3e.cvRes.missclass %>%
+  filter(.$missclass == min(missclass)) %>%
+  knitr::kable()
+```
+
+
+## f. Out-of-Bag repeated 60 times. 
+
+Repeat the bootstrapped-based out-of-bag validation 60 times. 
+
+i. Produce a plot of *binomial deviance* as a function of $\lambda$. 
+    - Note: *binomial deviance* is the default loss when `family = "binomial"`. 
+ii. Produce a plot of *mis-classification rate* as a function of $\lambda$. Use a threshold of $\hat{p} = 1/2$. 
+iii. Report the $\lambda$ values that minimize the metrics.
+iv. **Compare this approach with the 3-fold cross-validation used part d. How are they different? How are they similar?**
+
+Note: the function `assess.glmnet()` from the `glmnet` package will provide the *deviance* and *class* metrics. 
+
+### {.solution}
+
+```{r}
+set.seed(2022)
+steps = 60
+
+
+# just used for get lambda list 
+temp.ind = sample(nrow(sp500_data),replace = TRUE)
+temp.testSet = sp500_data[temp.ind,]
+temp.testX  = temp.testSet %>% select(-direction)
+temp.testy  = temp.testSet %>% select(direction)
+temp.sp500.fit.step = glmnet(as.matrix(temp.testX),as.matrix(temp.testy),alpha  = 1, family = "binomial")
+lambda.list = temp.sp500.fit.step$lambda
+
+sp500.3f.cvRes = tibble(step = numeric(), lambda = numeric(), biodev = numeric(),misclass = numeric())
+
+for(step in 1:steps){
+  ind = sample(nrow(sp500_data),replace = TRUE)
+  test = -ind
+  
+  # prepare the training dataset
+  dataSet = sp500_data[ind,]
+  trainX = dataSet %>% select(-direction)
+  trainy = dataSet %>% select(direction)
+  
+  testSet = sp500_data[test,]
+  testX  = testSet %>% select(-direction)
+  testy  = testSet %>% select(direction)
+  #get the training example 
+  sp500.fit.step = glmnet(as.matrix(trainX),as.matrix(trainy),alpha  = 1, lambda=lambda.list, family = "binomial")
+  sp500.fit.infor = assess.glmnet(sp500.fit.step,as.matrix(testX),as.matrix(testy),family = "binomial")
+  sp500.3f.cvRes = bind_rows(sp500.3f.cvRes, tibble(lambda = sp500.fit.step$lambda,biodev = sp500.fit.infor$deviance, misclass= sp500.fit.infor$class))
+}
+# sp500.3f.cvRes %>%
+#   ggplot(aes(x=lambda,y=biodev)) + geom_smooth()
+sp500.3f.cvRes.biodev = sp500.3f.cvRes %>%
+  group_by(lambda) %>%
+  summarise(biodev = mean(biodev))
+
+sp500.3f.cvRes.missclass = sp500.3f.cvRes %>%
+  group_by(lambda) %>%
+  summarise(missclass = mean(misclass))
+
+sp500.3f.cvRes.biodev %>%
+  ggplot(aes(x=lambda,y=biodev)) + geom_smooth() + geom_point()+
+  ylab("Binomial Deviance") +
+  geom_point(data=. %>% filter(biodev==min(biodev)), color="red", size=3)
+
+```
+$\lambda$  used minimize the binomial Deviance
+```{r}
+sp500.3f.cvRes.biodev %>% 
+  filter(.$biodev == min(biodev)) %>%
+  knitr::kable()
+```
+
+```{r}
+sp500.3f.cvRes.missclass %>%
+  ggplot(aes(x=lambda,y=missclass)) + geom_smooth() + geom_point() +
+  ylab("Missclassification Error")
+```
+$\lambda$  used minimize the Missclassification Error
+```{r}
+sp500.3f.cvRes.missclass %>%
+  filter(.$missclass == min(missclass)) %>%
+  knitr::kable()
+```
+
+- compare with 3-fold cross-validation 
+
+Compare with the result of 3-fold cross-validation, the result is very close to each other. The missclassification rate for boosttrap $0.4361$ while 3fold gives $0.4366$. 
+
+Look into the fold crossvalidation, all the sample are pre-sampled and then do the corss-validation. In this case, the data will be different. While for bootstrap, every step will resample the data, it may contains duplicated data in the dataset. 
+
+
+## g. Conclusions
+
+- How many models were fit under each approach?
+
+- Compare the approaches. Which one do you like best for this problem? 
+
+- Which value of $\lambda$ would you choose to minimize deviance? Mis-classification?
+
+
+### {.solution}
+
+- each approach fit 60 models. 
+
+
+
+
+
+
+
