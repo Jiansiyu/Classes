@@ -113,7 +113,7 @@ tableRes[7,7] = mean(observed.class == fit.lda.pred.classes)
 colnames(tableRes) = c("WK","WU","WD","ST","SD","LD","recall")
 rownames(tableRes) = c("Walking","W.Upstairs","W.Downstairs","Sitting","Standing","Laying Down","Precision")
 
-tableRes
+tableRes %>% knitr::kable()
 ```
 
 
@@ -124,10 +124,7 @@ How well did LDA do compared to the method employed in the paper?
 - Discuss total Accuracy, Precision, and Recall. 
 
 ### {.solution}
-```{r  warning=FALSE}
-tableRes
 
-```
 Compare with the data in the paper, the overall precision are the sample. For recall result, LDA model have better result in **W.Upstairs** have better result. **W.Downstairs** and **Standing** have little worse result. For the result of them, the result almost the same. 
 
 In the Precision, "WK","WD","LD" have same or better precision, for the reset, the LDA result is slitely worse.
@@ -158,7 +155,7 @@ Implement the *one-vs-rest* procedure using penalized logistic regression (i.e.,
 ### {.solution}
 
 Add Solution Here
-```{r }
+```{r cache=TRUE}
 set.seed(221)
 n_classes = nrow(unique(train_y))  # get the number of classes
 trainedMode=tibble()
@@ -201,7 +198,7 @@ test.Pred.tableRes[7,7] = mean(test.Pred.val == fit.lda.pred.classes)
 colnames(test.Pred.tableRes) = c("WK","WU","WD","ST","SD","LD","recall")
 rownames(test.Pred.tableRes) = c("Walking","W.Upstairs","W.Downstairs","Sitting","Standing","Laying Down","Precision")
 
-test.Pred.tableRes
+test.Pred.tableRes %>% knitr::kable()
 
 
 ```
@@ -212,8 +209,59 @@ How does this approach compare to LDA and the method employed in the paper? Disc
 
 ### {.solution}
 
-Add Solution Here
+- Total Accuracy
+```{r echo=FALSE}
+accuracy.total.2b=tibble(paper=0.96,LDA = 0.9623,One.vs.Rest= 0.9708)
+accuracy.total.2b
+```
+The One.vs.Rest model gives better accuracy. LDA and paper gives smililar accuracy. 
 
+- recall result
+```{r echo=FALSE}
+table.2b.recall <- matrix(test.Pred.tableRes[,7])
+table.2b.recall <- cbind(table.2b.recall,tableRes[,7])
+table.2b.recall <- cbind(table.2b.recall,c(0.99,0.96,0.98,0.88,0.97,1.,0.96))
+
+colnames(table.2b.recall) <- c("One.vs.Rest","LDA","paper")
+
+table.2b.recall %>% knitr::kable()
+```
+Compare the recal result amount the different models 
+```{r echo=FALSE}
+table.2b.recall.compare <- matrix(c("One.vs.Res > Paper > LDA",
+                                           "LDA > One.vs.Res > Paper",
+                                           "Paper > One.vs.Res > LDA",
+                                           "LDA ~ Paper > One.vs.Rest",
+                                           "One.vs.Res ~ Paper > LDA",
+                                           "One.vs.Res = Paper = LDA"))
+colnames(table.2b.recall.compare) <- c("Performance")
+rownames(table.2b.recall.compare) = c("Walking","W.Upstairs","W.Downstairs","Sitting","Standing","Laying Down")
+table.2b.recall.compare %>% knitr::kable()
+```
+Although there is a difference in the recal, the difference is small.
+
+- precision
+
+```{r echo=FALSE}
+
+table.2b.precision <- matrix(test.Pred.tableRes[7,])
+table.2b.precision <- cbind(table.2b.precision,tableRes[7,])
+table.2b.precision <- cbind(table.2b.precision,c(0.96,0.98,0.99,0.97,0.90,0.1,0.96))
+colnames(table.2b.precision) <- c("One.vs.Rest","LDA","paper")
+table.2b.precision %>% knitr::kable() 
+```
+Compare the precision result amount the different models 
+```{r echo=FALSE}
+table.2b.precision.compare <- matrix(c("LDA > One.vs.Res ~ Paper",
+                                           "Paper > One.vs.Res >LDA",
+                                           "One.vs.Res ~ LDA ~ Paper",
+                                           "Paper ~ One.vs.Rest > LDA",
+                                           "Paper ~ LDA > One.vs.Res",
+                                           "One.vs.Res = Paper = LDA"))
+colnames(table.2b.precision.compare) <- c("Performance")
+rownames(table.2b.precision.compare) = c("WK","WU","WD","ST","SD","LD")
+table.2b.precision.compare %>% knitr::kable()
+```
 
 # Problem 3 (17 pts): S\&P 500
 
@@ -246,6 +294,8 @@ n.fold = 60
 fold = sample(rep(1:n.fold, length = nrow(sp500_data)))
 sp500.fit = cv.glmnet(direction ~ lag1 + lag2 + lag3 + lag4 + lag5, data = sp500_data,foldid = fold, family = "binomial")
 
+## used for buffer the result for the last question 
+report.3g.final = tibble(model=str_c(),type=str_c(),lambda=numeric(),biodev=numeric(),missclass=numeric())
 plot(sp500.fit)
 
 ```
@@ -253,6 +303,9 @@ $\lambda$  that minimize the Binomial Deviance
 ```{r}
 report.3a.lambda = sp500.fit$lambda[sp500.fit$cvm == min(sp500.fit$cvm)]
 report.3a.temp = tibble(lambda = report.3a.lambda, log.lambda = log(report.3a.lambda), Binomial_Deviance = min(sp500.fit$cvm))
+
+report.3g.final = add_row(report.3g.final,model = "60-fold",type="biodev",lambda=report.3a.temp$lambda,biodev= report.3a.temp$Binomial_Deviance)
+
 report.3a.temp %>% knitr::kable()
 ```
 
@@ -273,6 +326,9 @@ $\lambda$  that minimize the Misclassification Error
 ```{r}
 report.3a2.lambda = sp500.fit.3a2$lambda[sp500.fit.3a2$cvm == min(sp500.fit.3a2$cvm)]
 report.3a2.temp = tibble(lambda = report.3a2.lambda, log.lambda = log(report.3a2.lambda), Missclassification.Error = min(sp500.fit.3a2$cvm))
+
+report.3g.final = add_row(report.3g.final,model = "60-fold",type="missclass",lambda=report.3a2.temp$lambda,missclass= report.3a2.temp$Missclassification.Error)
+
 report.3a2.temp %>% knitr::kable()
 ```
 
@@ -335,12 +391,22 @@ sp500.3b.cvRes %>%
 ```
 $\lambda$ that minimized the Binomial Deviance 
 ```{r}
+sp500.3b.cvRes.devRes = sp500.3b.cvRes %>%
+  filter(.$name == unique(sp500.3b.cvRes$name)[1]) %>%
+  group_by(lambda) %>%
+  summarise(mean_deviance = mean(biodev)) %>%
+  filter(mean_deviance == min(mean_deviance))
+
+report.3g.final = add_row(report.3g.final,model = "10-fold",type="biodev",lambda=sp500.3b.cvRes.devRes$lambda,biodev= sp500.3b.cvRes.devRes$mean_deviance)
+
+
 sp500.3b.cvRes %>%
   filter(.$name == unique(sp500.3b.cvRes$name)[1]) %>%
   group_by(lambda) %>%
   summarise(mean_deviance = mean(biodev)) %>%
   filter(mean_deviance == min(mean_deviance)) %>% knitr::kable()
 ```
+
 ```{r}
 sp500.3b.cvRes %>%
   filter(.$name == unique(sp500.3b.cvRes$name)[2]) %>%
@@ -352,6 +418,15 @@ sp500.3b.cvRes %>%
 ```
 $\lambda$ that minimized the Missclassification Error
 ```{r}
+
+sp500.3b.cvRes.missclass=sp500.3b.cvRes %>%
+  filter(.$name == unique(sp500.3b.cvRes$name)[2]) %>%
+  group_by(lambda) %>%
+  summarise(mean_missclassification = mean(missclass)) %>%
+  filter(mean_missclassification == min(mean_missclassification))
+
+report.3g.final = add_row(report.3g.final,model = "10-fold",type="missclass",lambda=sp500.3b.cvRes.missclass$lambda,missclass= sp500.3b.cvRes.missclass$mean_missclassification)
+
 
 sp500.3b.cvRes %>%
   filter(.$name == unique(sp500.3b.cvRes$name)[2]) %>%
@@ -417,6 +492,15 @@ sp500.3c.cvRes %>%
 ```
 $\lambda$ that minimized the Binomial Deviance
 ```{r}
+
+sp500.3c.cvRes.biodev.res = sp500.3c.cvRes %>%
+  filter(.$name == unique(sp500.3c.cvRes$name)[1]) %>%
+  group_by(lambda) %>%
+  summarise(mean_deviance = mean(biodev)) %>%
+  filter(mean_deviance == min(mean_deviance))
+
+report.3g.final = add_row(report.3g.final,model = "5-fold",type="biodev",lambda=sp500.3c.cvRes.biodev.res$lambda,biodev= sp500.3c.cvRes.biodev.res$mean_deviance)
+
 sp500.3c.cvRes %>%
   filter(.$name == unique(sp500.3c.cvRes$name)[1]) %>%
   group_by(lambda) %>%
@@ -436,6 +520,14 @@ sp500.3c.cvRes %>%
 ```
 $\lambda$ that minimized the Missclassification Error
 ```{r}
+sp500.3c.cvRes.missclass.res = sp500.3c.cvRes %>%
+  filter(.$name == unique(sp500.3c.cvRes$name)[2]) %>%
+  group_by(lambda) %>%
+  summarise(Missclassification = mean(missclass)) %>%
+  filter(Missclassification == min(Missclassification))
+
+report.3g.final = add_row(report.3g.final,model = "5-fold",type="missclass",lambda=sp500.3c.cvRes.missclass.res$lambda,missclass= sp500.3c.cvRes.missclass.res$Missclassification)
+
 sp500.3c.cvRes %>%
   filter(.$name == unique(sp500.3c.cvRes$name)[2]) %>%
   group_by(lambda) %>%
@@ -500,6 +592,15 @@ sp500.3d.cvRes %>%
 ```
 $\lambda$ that minimized the Binomial Deviance
 ```{r}
+
+sp500.3d.cvRes.biodev.res = sp500.3d.cvRes %>%
+  filter(.$name == unique(.$name)[1]) %>%
+  group_by(lambda) %>%
+  summarise(mean_deviance = mean(biodev)) %>%
+  filter(mean_deviance == min(mean_deviance))
+
+report.3g.final = add_row(report.3g.final,model = "3-fold",type="biodev",lambda=sp500.3d.cvRes.biodev.res$lambda,biodev= sp500.3d.cvRes.biodev.res$mean_deviance)
+
 sp500.3d.cvRes %>%
   filter(.$name == unique(.$name)[1]) %>%
   group_by(lambda) %>%
@@ -519,6 +620,14 @@ sp500.3d.cvRes %>%
 ```
 $\lambda$ that minimized the Missclassification Error
 ```{r}
+sp500.3d.cvRes.missclass.res = sp500.3d.cvRes %>%
+  filter(.$name == unique(.$name)[2]) %>%
+  group_by(lambda) %>%
+  summarise(missclassification = mean(missclass)) %>%
+  filter(missclassification == min(missclassification))
+
+report.3g.final = add_row(report.3g.final,model = "3-fold",type="missclass",lambda=sp500.3d.cvRes.missclass.res$lambda,missclass= sp500.3d.cvRes.missclass.res$missclassification)
+
 sp500.3d.cvRes %>%
   filter(.$name == unique(.$name)[2]) %>%
   group_by(lambda) %>%
@@ -606,6 +715,12 @@ sp500.3e.cvRes.biodev %>%
 ```
 $\lambda$ used minimize the binomial Deviance
 ```{r}
+
+sp500.3e.cvRes.biodev.res =  sp500.3e.cvRes.biodev %>%
+  filter(.$biodev == min(biodev))
+
+report.3g.final = add_row(report.3g.final,model = "mc",type="biodev",lambda=sp500.3e.cvRes.biodev.res$lambda,biodev= sp500.3e.cvRes.biodev.res$biodev)
+
 sp500.3e.cvRes.biodev %>%
   filter(.$biodev == min(biodev)) %>%
   knitr::kable()
@@ -619,6 +734,11 @@ sp500.3e.cvRes.missclass %>%
 
 $\lambda$ used minimize the Missclassification Error
 ```{r}
+sp500.3e.cvRes.missclass.res =sp500.3e.cvRes.missclass %>%
+  filter(.$missclass == min(missclass))
+
+report.3g.final = add_row(report.3g.final,model = "mc",type="missclass",lambda=sp500.3e.cvRes.missclass.res$lambda,missclass= sp500.3e.cvRes.missclass.res$missclass)
+
 sp500.3e.cvRes.missclass %>%
   filter(.$missclass == min(missclass)) %>%
   knitr::kable()
@@ -689,6 +809,11 @@ sp500.3f.cvRes.biodev %>%
 ```
 $\lambda$  used minimize the binomial Deviance
 ```{r}
+sp500.3f.cvRes.biodev.res = sp500.3f.cvRes.biodev %>% 
+  filter(.$biodev == min(biodev))
+
+report.3g.final = add_row(report.3g.final,model = "OutBag",type="biodev",lambda=sp500.3f.cvRes.biodev.res$lambda,biodev= sp500.3f.cvRes.biodev.res$biodev)
+
 sp500.3f.cvRes.biodev %>% 
   filter(.$biodev == min(biodev)) %>%
   knitr::kable()
@@ -701,6 +826,11 @@ sp500.3f.cvRes.missclass %>%
 ```
 $\lambda$  used minimize the Missclassification Error
 ```{r}
+sp500.3f.cvRes.missclass.res = sp500.3f.cvRes.missclass %>%
+  filter(.$missclass == min(missclass))
+
+report.3g.final = add_row(report.3g.final,model = "OutBag",type="missclass",lambda=sp500.3f.cvRes.missclass.res$lambda,missclass= sp500.3f.cvRes.missclass.res$missclass)
+
 sp500.3f.cvRes.missclass %>%
   filter(.$missclass == min(missclass)) %>%
   knitr::kable()
@@ -726,6 +856,18 @@ Look into the fold crossvalidation, all the sample are pre-sampled and then do t
 
 - each approach fit 60 models. 
 
+- compare with the different approaches
+```{r}
+report.3g.final %>%
+  filter(type=="biodev") %>% select(-missclass)
+```
+```{r}
+report.3g.final %>%
+  filter(type=="missclass") %>% select(-biodev)
+```
+I would choose Monte Carlo Cross-Validation Model, the Monte-Carlo gives smallest Missclassification Error and also the Binomial Devience also is the smallest amount those different approaches. 
+
+- For minimized deviance $\lambda=0.01782$, for the Mis-classification will use $\lambda=0.005834$
 
 
 
