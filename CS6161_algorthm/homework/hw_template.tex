@@ -1,0 +1,118 @@
+%---------change this every homework
+\def\yourname{ John Smith } % Modify this command to be your name 
+\def\yourcomputingid{xxxxx } % and computing ID
+\def\lateday{ 0 } %%% Also pledge how many late day you have used for this homework 
+\def\hnumber{1}
+%------
+%-------------------------------------
+%-------------------------------------
+\def\coursename{CS 6161: Design and Analysis of Algorithm }
+\def\semester{Fall 2020 }
+
+
+\documentclass[12pt,letterpaper]{article}
+
+\usepackage{graphicx,amssymb,amsmath,bm}
+% \usepackage{newcommand}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{color}
+\definecolor{mdb}{rgb}{0.3,0.02,0.02} 
+\definecolor{cit}{rgb}{0.05,0.2,0.45} 
+
+\sloppy
+\newcommand{\ignore}[1]{}
+
+\newenvironment{proof}{\noindent{\bf Proof:}}{\qed\bigskip}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{lemma}{Lemma} 
+\newtheorem{claim}{Claim}
+\newtheorem{fact}{Fact}
+\newtheorem{definition}{Definition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{observation}{Observation}
+\newtheorem{example}{Example}
+\newcommand{\qed}{\rule{7pt}{7pt}}
+
+\newcommand{\problem}[1]{ {\sc\color{cit} \noindent Problem #1}}
+
+\newcommand{\homework}[4]{
+	\thispagestyle{plain} 
+	\newpage
+	\setcounter{page}{1}
+	\noindent
+	\begin{center}
+		\framebox{ \vbox{ \hbox to 6.28in
+				{\bf \coursename \hfill \semester} %change course name
+				\vspace{4mm}
+				\hbox to 6.28in
+				{\hspace{2.5in}\large\mbox{Homework #2}}
+				\vspace{4mm}
+				\hbox to 6.28in
+				{{\it Student Name: #3 \hfill Computing ID: #4 \hfill Used #1 Late Day(s)}}
+				\vspace{4mm}
+			}}
+		\end{center}
+	}
+
+\oddsidemargin 0in
+\evensidemargin 0in
+\textwidth 6.5in
+\topmargin -0.5in
+\textheight 9.0in
+
+
+\begin{document}
+
+\homework{\lateday}{\hnumber}{\yourname}{\yourcomputingid}
+
+\begin{footnotesize}
+	\begin{itemize}
+		\item Discussions are allowed, even encouraged, but you must write up solutions independently. Please try to keep the solution concise and clear. 
+		\item You will need to submit your solutions in PDF to UVA-Collab. % and additionally hand over a printed PDF  to the TAs in class. 
+%		\item The first page of your submission should include the pledge followed by your signature.
+% 		\item The homework is due at 5:00 PM (before the class) on the due date. 
+	\end{itemize}
+\end{footnotesize}
+% {\sc Pledge: On my honor, I pledge that I have neither given nor received help on this assignment.}
+
+\problem{1}
+\begin{enumerate} %%% Please mark your solution to each specific subproblem
+    \item 
+    
+    \item
+    
+    \item
+\end{enumerate}
+
+\newpage %%% Please start your solution of next problem with a new page
+
+\problem{2}
+
+\begin{proof}
+
+Here is a \LaTeX template for you to formally present the pseudocode of your algorithm \ref{alg:example},  
+
+\begin{algorithm}[h] 
+   \caption{Bubble Sort}
+   \label{alg:example}
+\begin{algorithmic}
+   \STATE {\bfseries Input:} data $x_i$, size $m$
+   \REPEAT
+   \STATE Initialize noChange $=$ \TRUE.
+   \FOR{$i=1$ {\bfseries to} $m-1$}
+   \IF{$x_i > x_{i+1}$}
+   \STATE Swap $x_i$ and $x_{i+1}$
+   \STATE noChange $=$ \FALSE
+   \ENDIF
+   \ENDFOR
+   \UNTIL{\textup{noChange} is \TRUE }
+\end{algorithmic}
+\end{algorithm}
+
+\end{proof}
+\newpage
+
+\end{document}

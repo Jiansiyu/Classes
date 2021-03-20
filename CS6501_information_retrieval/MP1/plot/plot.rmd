@@ -31,7 +31,7 @@ library(glmnetUtils)
 ```{r}
 
 library(readr)
-yelpID = 40
+yelpID = 60
 filename = sprintf("outCount%d.csv",yelpID)
 
 data20 = read_csv(file.path(data.dir,filename))
@@ -83,11 +83,31 @@ df.plot
 df.plot
 ggsave(sprintf("Yelp_%d_df.png",yelpID))
 ```
-```{r}
-# rank the df 
+```{r, message=FALSE, warning=FALSE}
+invertIndex = read_csv(file.path(data.dir, "invertIndex60.csv"))
+invertIndex = invertIndex[order(invertIndex$token_count, decreasing = TRUE),]
+invertIndex  = add_column(invertIndex, rank =log10(1:nrow(invertIndex)))
+
+invert_token = tibble(rank = invertIndex$rank, token_count = invertIndex$token_count)
+invert_token= invert_token[!duplicated(invert_token$token_count),]
+invert_token$token_count = log10(invert_token$token_count)
+
+data = tibble(x=invert_token$rank,y=invert_token$token_count)
+smb = ggplot(invert_token, aes(x = rank, y =token_count)) + geom_point() +geom_smooth(method = "lm",formula = "y~x", se=FALSE, aes(color ="linear"))+
+  geom_text(x=0.7, y=3, label = lm_eqn(plot.data.df), parse = TRUE)
+ 
+smb
+```
+
+``````{r, message=FALSE, warning=FALSE}
+invert_file = tibble(rank = invertIndex$rank, file_count = invertIndex$file_count)
+invert_file= invert_file[!duplicated(invert_file$file_count),]
+invert_file$file_count = log10(invert_file$file_count)
 
 
-
+sp1 = ggplot(invert_file, aes(x = rank, y =file_count)) + geom_point() +geom_smooth(method="lm",formula = "y ~ x" ,se=FALSE,aes(color="linear")) 
+ 
+sp1
 
 ```
 

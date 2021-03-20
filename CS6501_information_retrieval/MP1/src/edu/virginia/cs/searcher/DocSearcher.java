@@ -36,12 +36,8 @@ public class DocSearcher {
 					matchCount += 1;
 				}
 			}
-			
-			//exact match of all query terms
-//			if (matchCount == queryTerms.length)
-//				results.add(doc);
 			// exact match of at lest one term
-			if (matchCount > 0)
+			if (matchCount == queryTerms.length)
 				results.add(doc);
 		}
 		
