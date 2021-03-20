@@ -68,5 +68,5 @@ public class Stopwords {
             "whoever", "whole", "whom", "whomever", "whomsoever", "whose",
             "whosoever", "why", "will", "wilt", "with", "within", "without",
             "worse", "worst", "would", "wow", "ye", "yet", "year", "yippee",
-            "you", "your", "yours", "yourself", "yourselves" };
+            "you", "your", "yours", "yourself", "yourselves","NUM" };
 }

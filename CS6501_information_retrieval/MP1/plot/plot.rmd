@@ -1,0 +1,93 @@
+---
+title: "Spectometer Regression" 
+author: "**Siyu Jian / sj9va**"
+date: " Wed Mar 10 | 10:55am"
+output: R6018::homework
+---
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+# options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = '../' # data directory
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation   
+library(mlbench)
+library(glmnet)
+library(glmnetUtils) 
+```
+
+
+# plot the Yelp data 
+
+## 1. Yelp 20
+```{r}
+
+library(readr)
+yelpID = 40
+filename = sprintf("outCount%d.csv",yelpID)
+
+data20 = read_csv(file.path(data.dir,filename))
+data20 = data20[order(data20$token_count, decreasing = TRUE),]
+data20 = add_column(data20, rank = 1:nrow(data20))
+data20= data20[!duplicated(data20$token_count),]
+
+
+data20$log.rank = log10(data20$rank)
+data20$log.ttf = log10(data20$token_count)
+
+
+lm_eqn <- function(df){
+    m <- lm(y ~ x, df);
+    eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
+         list(a = format(unname(coef(m)[1]), digits = 2),
+              b = format(unname(coef(m)[2]), digits = 2),
+             r2 = format(summary(m)$r.squared, digits = 3)))
+    as.character(as.expression(eq));
+}
+
+
+plot.data <- tibble(x=data20$log.rank,y=data20$log.ttf)
+
+sp1 = ggplot(plot.data, aes(x, y)) + geom_point() + geom_smooth(data = plot.data,method = "lm",formula = "y~x", se=FALSE, aes(color ="linear")) + geom_text(x=0.7, y=3, label = lm_eqn(plot.data), parse = TRUE) + 
+ggtitle(sprintf("Yelp %d Rank vs. TTF log plot ",yelpID)) + xlab("log10.rank") + ylab("log10.ttf")
+
+sp1
+ggsave(sprintf("Yelp_%d_ttf.png",yelpID))
+
+
+
+data.df = read_csv(file.path(data.dir,filename))
+
+data.df = data.df[order(data.df$file_count,decreasing = TRUE),]
+data.df = add_column(data.df, rank.df = 1:nrow(data.df))
+
+data.df= data.df[!duplicated(data.df$file_count),]
+
+data.df$log.rank.df = log10(data.df$rank.df)
+data.df$log.df = log10(data.df$file_count)
+
+plot.data.df = tibble(x = data.df$log.rank.df,y = data.df$log.df)
+
+df.plot = ggplot(plot.data.df, aes(x, y)) + geom_point() + geom_smooth(method = "lm",formula = "y~x", se=FALSE, aes(color ="linear")) + geom_text(x=0.7, y=3, label = lm_eqn(plot.data.df), parse = TRUE) + 
+ggtitle(sprintf("Yelp %d Rank vs. DF log plot ",yelpID)) + xlab("log10.rank") + ylab("log10.df")
+
+df.plot
+df.plot
+ggsave(sprintf("Yelp_%d_df.png",yelpID))
+```
+```{r}
+# rank the df 
+
+
+
+
+```
+

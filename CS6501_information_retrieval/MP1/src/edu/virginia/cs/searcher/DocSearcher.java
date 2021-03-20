@@ -32,10 +32,16 @@ public class DocSearcher {
 				 * INSTRUCTOR'S NOTE: match the processed query terms against each document's BoW representation
 				 * Find the document that matches at least one query key word
 				 */
+				if (doc.contains(term)){
+					matchCount += 1;
+				}
 			}
 			
 			//exact match of all query terms
-			if (matchCount == queryTerms.length)
+//			if (matchCount == queryTerms.length)
+//				results.add(doc);
+			// exact match of at lest one term
+			if (matchCount > 0)
 				results.add(doc);
 		}
 		

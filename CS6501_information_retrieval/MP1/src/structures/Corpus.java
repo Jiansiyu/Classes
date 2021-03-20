@@ -76,7 +76,7 @@ public class Corpus {
 		//TODO add code to write the dictionary to csv file
 		try {
 			FileWriter csvWriter = new FileWriter(outputfname);
-			csvWriter.write("item,count,f_count\n");
+			csvWriter.write("token,token_count,file_count\n");
 			// loop over the dictionary and write the dictionary
 			for (String token : m_dictionary.keySet()){
 				csvWriter.write(String.format("%s,%d,%d\n",token,m_dictionary.get(token),f_dictionary.get(token)));

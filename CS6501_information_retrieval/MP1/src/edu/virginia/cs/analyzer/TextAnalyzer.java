@@ -42,9 +42,11 @@ public class TextAnalyzer {
 			 * INSTRUCTOR'S NOTE: perform necessary text processing here, e.g., stemming, normalization and stopword removal
 			 */
 
+			if (token!=null && token.length()>0) token = stopword(token);           // stopword removal
 			if (token!=null && token.length()>0) token = normalize(token);          // normalize the token
 			if (token!=null && token.length()>0) token = stopword(token);           // stopword removal
 			if (token!=null && token.length()>0) token = snowballStemming(token);   //
+			if (token!=null && token.length()>0) token = stopword(token);           // stopword removal
 
 			if (token!=null && token.length()>0)
 				processedTerms.add(token); 
@@ -60,7 +62,6 @@ public class TextAnalyzer {
 		 * INSTRUCTOR'S NOTE
 		 * please change this to remove all English punctuation
 		 */
-//		token = token.replaceAll("\\W+", "");
 		token = token.replaceAll("\\p{Punct}", "");
 
 		// convert to lower case
@@ -72,16 +73,14 @@ public class TextAnalyzer {
 		 * and convert the recognized integers and doubles to a special symbol "NUM"
 		 */
 		String numberRegex = "(\\-?\\d*\\.?\\d+)";
-//		System.out.format("Token:\t%s\t,\t%s\t\n",token,token.replaceAll(numberRegex,"NUM"));
 		token = token.replaceAll(numberRegex,"NUM");
-
 		/**
 		 * INSTRUCTOR'S NOTE
 		 * after reading your constructed controlled vocabulary, can you come up with other 
 		 * normaliazation rules to further refine the selected terms?
 		 */
 
-		//TODO need to remove the stopword
+		if (token.length()<=1) return null;
 		
 		return token;
 	}

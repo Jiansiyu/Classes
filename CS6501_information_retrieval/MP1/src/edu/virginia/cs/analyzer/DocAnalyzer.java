@@ -44,9 +44,6 @@ public class DocAnalyzer extends TextAnalyzer {
 		}
 		size = m_corpus.getCorpusSize() - size;
 		System.out.println("Loading " + size + " review documents from " + folder);
-		//TODO right place to write the csv file
-
-		m_corpus.WriteCSV("outcount.csv");
 	}
 	
 	// sample code for demonstrating how to read a file from disk in Java
