@@ -1,0 +1,209 @@
+---
+title: "Homework #5: Density Estimation" 
+author: "**Your Name Here**"
+date: "Due: Wed Mar 24 | 10:55am"
+output: R6018::homework
+---
+
+**SYS 4582/6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+# options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data/' # data directory
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation   
+library(ks)        # functions for KDE
+```
+
+
+
+# Problem 1 Geographic Profiling
+
+Geographic profiling, a method developed in criminology, can be used to estimate the [home location (roost) of animals](https://www.sciencedirect.com/science/article/pii/S0022519305004157) based on a collection of sightings. The approach requires an estimate of the distribution the animal will travel from their roost to forage for food. 
+
+A sample of 283 distances that pipistrelle bats traveled (in meters) from their roost can be found at: 
+<https://mdporter.github.io/SYS6018/data/geo_profile.csv>
+
+
+One probability model for the distance these bats will travel is:
+\begin{align*}
+f(x; \theta) = \frac{x}{\theta} \exp \left( - \frac{x^2}{2 \theta} \right)
+\end{align*}
+where the parameter $\theta > 0$ controls how far they are willing to travel. 
+
+
+## a. Derive the MLE for $\theta$ (i.e., show the math). 
+
+### {.solution}
+
+$$L(\theta)=\prod_{i=1}^nf(x_i,\theta)$$
+$$log(L(\theta)) = \sum_i^n(\log{x_i} - \log{\theta} - \frac{x_i^2}{2\theta})$$
+$$\frac{\partial{\log{L(\theta)}}}{\partial\theta} = \frac{n}{\theta} - \sum_i^n{\frac{x_i^2}{2*\theta^2}}=0$$
+$$\frac{\sum_i^n{x_i^2}}{2*\theta^2} = \frac{n}{\theta}$$
+$$\theta = \frac{\sum_i^nx_i^2}{2n}$$
+
+
+## b. What is the MLE of $\theta$ for the bat data? (Use results from a, or use computational methods.) 
+
+### {.solution}
+
+```{r}
+
+dataReader = read.csv("https://mdporter.github.io/SYS6018/data/geo_profile.csv",header = FALSE)
+
+res.1b.sumvsq = sum(dataReader$V1*dataReader$V1)
+
+res.1b = res.1b.sumvsq / (2*nrow(dataReader))
+res.1b
+```
+
+
+
+
+## c. Using the MLE value of $\theta$ from part b, compute the estimated density at a set of evaluation points between 0 and 8 meters. Plot the estimated density.
+
+### {.solution}
+
+```{r}
+func.1c <- function(x , theta){(x/theta)*exp(-x*x/(2*theta))}
+x.seq = seq(0,8,length = 200)
+
+dataplot.1c = tibble(x = x.seq,y=func.1c(x.seq,res.1b))
+
+plot.1c.para = dataplot.1c %>% 
+  ggplot(aes(x,y)) + geom_point() + geom_line()
+
+plot.1c.para
+```
+
+
+## d. Estimate the density using KDE. Report the bandwidth you chose and produce a plot of the estimated density. 
+
+### {.solution}
+
+```{r}
+res.kde.1d = kde(dataReader$V1)
+res.kde.1d$h
+plot(res.kde.1d,las = 1)
+```
+
+
+
+
+## e. Which model do you prefer, the parametric or KDE? 
+
+### {.solution}
+
+I prefer the KDE model, from the plot we can see, the parametric tend to have too large binary which tend to hide the detail features of the distribution. 
+```{r}
+ggplot(dataReader,aes(x=V1)) + geom_bar(color="Blue", fill="skyblue") + geom_density(color = "red")
+```
+
+
+
+# Problem 2: Interstate Crash Density
+
+Interstate 64 (I-64) is a major east-west road that passes just south of Charlottesville. Where and when are the most dangerous places/times to be on I-64? The crash data (link below) gives the mile marker and fractional time-of-week for crashes that occurred on I-64 between mile marker 87 and 136 in 2016. The time-of-week data takes a numeric value of *\<dow\>.\<hour/24\>*, where the dow starts at 0 for Sunday (6 for Sat) and the decimal gives the time of day information. Thus `time=0.0417` corresponds to Sun at 1am and `time=6.5` corresponds to Sat at noon). 
+
+- **Crash Data**: <`r file.path(data.dir, 'crashes16.csv')`>
+
+
+## a. Extract the crashes and make a scatter plot with mile marker on x-axis and time on y-axis. 
+
+
+### {.solution}
+
+```{r message=FALSE, warning=FALSE}
+
+dataReader2a = readr::read_csv("https://mdporter.github.io/SYS6018/data//crashes16.csv") 
+
+dataReader2a %>% ggplot(aes(mile,time)) + geom_point()
+```
+
+
+
+## b. Use KDE to estimate the *mile marker* density. 
+
+- Report the bandwidth. 
+- Plot the density estimate.
+
+### {.solution}
+
+```{r}
+res.kde.2b = kde(dataReader2a$mile)
+res.kde.2b$h
+plot(res.kde.2b,las = 1)
+```
+
+
+
+## c. Use KDE to estimate the temporal *time-of-week* density. 
+
+- Report the bandwidth. 
+- Plot the density estimate. 
+
+### {.solution}
+
+```{r}
+
+res.kde.2c = kde(dataReader2a$time)
+res.kde.2c$h
+
+plot(res.kde.2c,las =1 )
+```
+
+
+
+
+## d. Use KDE to estimate the bivariate mile-time density. 
+
+- Report the bandwidth parameters.
+- Plot the bivariate density estimate. 
+
+### {.solution}
+
+```{r}
+H1 = Hscv(dataReader2a)
+res.2d.kde = kde(dataReader2a,H = H1)
+
+
+plot(res.2d.kde,
+          cont = c(5,10,20,30,40,50,60),                        # set contour levels
+     # display = "filled.contour",                # use filled contour
+     las=1, xlim = c(80, 140), ylim=c(-1, 8)
+     )
+points(dataReader2a, pch = 19,cex = 0.5, col='grey60')
+grid()
+```
+
+
+
+
+## e. Based on the estimated density, approximate the most dangerous mile marker and time-of-week. 
+
+### {.solution}
+
+```{r}
+
+plot(res.2d.kde,
+          cont = seq(1,30,by=3),                        # set contour levels
+     # display = "filled.contour",                # use filled contour
+     las=1, xlim = c(80, 140), ylim=c(-1, 8)
+     )
+points(dataReader2a, pch = 19,cex = 0.5, col='grey60')
+grid()
+```
+From the above plot we can see:
+
+- The most dangerous miles marker and time-of-week is around $~(117,1.7)$. Mile marker : 117, on Monday 4.50pm
+- second most dangerous miles marker and time-of week is around $~(103,5.5)$. Mile marker 103, on Friday Noon 
+		

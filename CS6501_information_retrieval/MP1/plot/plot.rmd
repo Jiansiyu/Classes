@@ -92,22 +92,45 @@ invert_token = tibble(rank = invertIndex$rank, token_count = invertIndex$token_c
 invert_token= invert_token[!duplicated(invert_token$token_count),]
 invert_token$token_count = log10(invert_token$token_count)
 
-data = tibble(x=invert_token$rank,y=invert_token$token_count)
-smb = ggplot(invert_token, aes(x = rank, y =token_count)) + geom_point() +geom_smooth(method = "lm",formula = "y~x", se=FALSE, aes(color ="linear"))+
-  geom_text(x=0.7, y=3, label = lm_eqn(plot.data.df), parse = TRUE)
+data1 = tibble(x=invert_token$rank,y=invert_token$token_count)
+smb = ggplot(invert_token, aes(x = rank, y =token_count)) + geom_point() +geom_smooth(method = "lm",formula = "y~x", se=FALSE, aes(color ="linear")) + 
+  ggtitle(sprintf("Q2 Rank vs. TTF log plot ",yelpID)) + xlab("log10.rank") + ylab("log10.df")
  
 smb
+ggsave(sprintf("q2_ttf.png"))
 ```
 
 ``````{r, message=FALSE, warning=FALSE}
-invert_file = tibble(rank = invertIndex$rank, file_count = invertIndex$file_count)
-invert_file= invert_file[!duplicated(invert_file$file_count),]
-invert_file$file_count = log10(invert_file$file_count)
+
+invertIndex = read_csv(file.path(data.dir, "invertIndex60.csv"))
+invertIndex = invertIndex[order(invertIndex$file_count, decreasing = TRUE),]
+invertIndex  = add_column(invertIndex, rank.df =log10(1:nrow(invertIndex)))
+
+invertIndex= invertIndex[!duplicated(invertIndex$file_count),]
+
+invertIndex$log.df = log10(invertIndex$file_count)
 
 
-sp1 = ggplot(invert_file, aes(x = rank, y =file_count)) + geom_point() +geom_smooth(method="lm",formula = "y ~ x" ,se=FALSE,aes(color="linear")) 
- 
-sp1
+dataplot = tibble(x=invertIndex$rank.df,y=invertIndex$log.df)
+
+
+ggplot(invertIndex,aes(x= rank.df,y=log.df)) + geom_point() +geom_smooth(method="lm",formula = "y ~ x" ,se=FALSE,aes(color="linear")) + 
+  ggtitle(sprintf("Q2 Rank vs. DF log plot ",yelpID)) + xlab("log10.rank") + ylab("log10.df")
+#+ geom_text(x=0.7, y=3, label = lm_eqn(dataplot), parse = TRUE)
+
+ggsave(sprintf("q2_df.png"))
+# 
+# 
+# 
+# 
+# invert_file = tibble(rank = invertIndex$rank, file_count = invertIndex$file_count)
+# invert_file= invert_file[!duplicated(invert_file$file_count),]
+# invert_file$file_count = log10(invert_file$file_count)
+# 
+# 
+# sp1 = ggplot(invert_file, aes(x = rank, y =file_count)) + geom_point() +geom_smooth(method="lm",formula = "y ~ x" ,se=FALSE,aes(color="linear")) 
+#  
+# sp1
 
 ```
 
