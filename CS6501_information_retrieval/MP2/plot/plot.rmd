@@ -1,0 +1,76 @@
+---
+title: "Information Retrival Plot Function" 
+author: "**Siyu Jian / sj9va**"
+# date: " Wed Mar 10 | 10:55am"
+output: R6018::homework
+---
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+# options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data/' # data directory
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation   
+library(mlbench)
+library(glmnet)
+library(glmnetUtils) 
+```
+
+# load the dataset 
+
+```{r}
+bm25_url = "../evaluate_ok.csv"
+tfidf_url = "../evaluate_tfidf.csv"
+
+dataset_bm25  = readr::read_csv(bm25_url)
+dataset_tfidf = readr::read_csv(tfidf_url)
+
+head(dataset_bm25)
+head(dataset_tfidf)
+
+```
+
+# Paired t-test 
+
+```{r}
+ptestRes = tibble(test = str_c(), MAP = numeric(),pk_10= numeric(), mrr = numeric(), NDCG_10 = numeric())
+
+avgPRec.t = t.test(x = dataset_bm25$avgPrec,y = dataset_tfidf$avgPrec,paired = TRUE, alternative = "less")
+
+pk10.t = t.test(x = dataset_bm25$pk10,y = dataset_tfidf$pk10,paired = TRUE, alternative = "less")
+
+mrr.t = t.test(x = dataset_bm25$mRR,y = dataset_tfidf$mRR,paired = TRUE, alternative = "less")
+
+ndcg.t = t.test(x = dataset_bm25$nDCG10,y = dataset_tfidf$nDCG10,paired = TRUE, alternative = "less")
+
+ptestRes = bind_rows(ptestRes,tibble(test = "paired t-test", MAP = avgPRec.t$p.value,pk_10 = pk10.t$p.value, mrr = mrr.t$p.value, NDCG_10 = ndcg.t$p.value))
+
+ptestRes %>% knitr::kable()
+
+
+```
+
+
+# Wilcoxon Signed-rank test 
+```{r}
+avgPRec.w = wilcox.test(x = dataset_bm25$avgPrec,y = dataset_tfidf$avgPrec,paired = TRUE, alternative = "less")
+pk10.w    = wilcox.test(x = dataset_bm25$pk10,y = dataset_tfidf$pk10,paired = TRUE, alternative = "less")
+mrr.w     = wilcox.test(x = dataset_bm25$mRR,y = dataset_tfidf$mRR,paired = TRUE, alternative = "less")
+ndcg10.w  = wilcox.test(x = dataset_bm25$nDCG10,y = dataset_tfidf$nDCG10,paired = TRUE, alternative = "less")
+
+ptestRes = bind_rows(ptestRes, tibble(test = "Wilcoxon", MAP = avgPRec.w$p.value,pk_10 = pk10.w$p.value,mrr = mrr.w$p.value,NDCG_10 = ndcg10.w$p.value))
+
+ptestRes %>% knitr::kable()
+
+write.table(ptestRes,file = "ptestRes.csv")
+
+```
+
