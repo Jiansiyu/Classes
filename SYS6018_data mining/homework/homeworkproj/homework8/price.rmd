@@ -1,0 +1,42 @@
+---
+title: "Homework #8: Kaggle Price Prediction" 
+author: "**Siyu Jian / sj9va**"
+date: "Due: Mon Apr 5 | 10:55am"
+output: R6018::homework
+---
+
+**SYS 4582/6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+# options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data/' # data directory
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation   
+library(readr)
+```
+
+
+# Load the Dataset 
+
+```{r}
+
+train_url = "./house-prices-advanced-regression-techniques/train.csv"
+test_url = "./house-prices-advanced-regression-techniques/test.csv"
+
+dataSet_train_reader = read.csv(train_url)
+dataSet_test_reader = read.csv(test_url)
+
+unique(dataSet_test_reader$LotFrontage)
+
+
+```
+

@@ -1,0 +1,220 @@
+---
+title: "Homework #9: Association Analysis" 
+author: "**Siyu Jian / sj9va**"
+date: "Due: Wed Apr 28 | 10:55am"
+output: R6018::homework
+editor_options:
+  chunk_output_type: console
+---
+
+**SYS 4582/6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+# options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data/' # data directory
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation   
+library(arules)    # functions for Association Rules
+library(readxl)
+```
+
+
+# Problem 1: Interestingness 
+
+Suppose we have market basket data consisting of 100 transactions and 20 items. Assume the support for item {$a$} is 20%, support for item {$b$} is 85%, and support for itemset {$a,b$} is 15%. 
+
+
+## a. What is the confidence of the rule {a} $\rightarrow$ {b}? 
+
+### {.solution}
+
+$$C(a\rightarrow b) = \frac{s(a,b)}{s(a)} = \frac{0.15}{0.2}=0.75$$
+
+## b. Will the apriori algorithm find this rule (interesting) if the confidence threshold (minconf) is $c=.60$ and the support threshold (minsup) is $s=.10$?  
+
+### {.solution}
+
+Yes. from the previouse calculation we can see $C(a\rightarrow b) = 0.75 > 0.6$ and also $0.2 > 0.1$.
+
+
+## c. Find the *lift* of this rule. 
+
+### {.solution}
+
+$L(a \rightarrow b) = \frac{0.75}{0.85} =$ `r 0.75/0.85`
+
+
+## d. Find the *addedValue* of this rule. 
+
+### {.solution}
+
+$AV(a\rightarrow b) = C(a\rightarrow b) - S(b) = 0.75-0.85 = -0.1$
+
+
+## e. Find the *leverage/PS* of this rule. 
+
+### {.solution}
+
+$PS(a\rightarrow b) = S(a,b) - S(a)S(b) = 0.15 - 0.2*0.85=$`r 0.15 - 0.2*0.85`
+
+## f. Describe the nature of the relationship between items {a} and {b} according to *lift*, *addedValue* and *leverage/PS*. What observation can you draw from parts (b) and (c-e)? 
+
+### {.solution}
+
+*lift* $L(a\rightarrow b) = 0.88 < 1$ which indicates negative association (a and b inhibit each other), aka, fewer people are prefered a and b together compare with if a and b is independent. *addedValue* value is smaller than 0, as expected since *left < 1*, it means a and b have negative association. The added value, which is the probabilty of $C(a\rightarrow b) - S(b)$, it shows the probability for get item b also get item a is smaller than the probability of b only, which also indicate an negative association between a and b. Selling on of a/b, does not increase the sale of the other item. 
+
+
+## g. Let $p(a)$, $p(b)$, and $p(a,b)$ be the actual probabilities of observing items {a}, {b}, and {a,b} respectively in a transaction. What is the expected confidence rule {a} $\rightarrow$ {b} if a and b are independent? 
+
+### {.solution}
+
+if a and b are indepent $Pr(a b) = Pr(a)Pr(b)$
+
+
+$$C(a\rightarrow b) = \frac{s(a,b)}{s(a)} = \frac{s(a)s(b)}{s(a)} =  0.85$$
+
+
+
+# Problem 2: Online Retail
+
+The website <http://archive.ics.uci.edu/ml/datasets/online+retail> describes some transactional data from an online retailer. 
+
+
+## a. Download the [excel file](http://archive.ics.uci.edu/ml/machine-learning-databases/00352/Online%20Retail.xlsx) to your machine and read it into R. 
+
+```{r, echo=FALSE, eval=FALSE}
+# HINT: use readxl::read_excel() for reading excel files
+library(readxl)
+data.dir = <"path/to/datadir">
+X = read_excel(file.path(data.dir, "Online Retail.xlsx"))
+```
+
+### {.solution}
+
+```{r}
+# check the existant of the file, if not download it from the url
+filename = "Online_Retail.xlsx"
+if (!file.exists(filename)){
+  data.url = "http://archive.ics.uci.edu/ml/machine-learning-databases/00352/Online%20Retail.xlsx"
+  download.file(data.url,destfile=filename,method="auto")
+}
+
+dataSet = readxl::read_excel(filename)
+head(dataSet,10)
+```
+
+
+
+
+## b. There are many quality problems with this dataset, but we will only address two of them. Remove all of the rows with missing Description values (NAs) and remove any duplicate items in a single transaction. Print the first 10 rows of the resulting data. 
+
+### {.solution}
+
+```{r}
+dataSet = dataSet %>% drop_na(Description)
+dataSet = dataSet %>% distinct(InvoiceNo, Description, .keep_all = TRUE)
+head(dataSet,10)
+```
+
+
+
+## c. Find the number of transactions and number of items using *InvoiceNo* for transactions and *Description* as items (i.e., ignore the *StockCode* column).
+
+### {.solution}
+
+```{r}
+NT = length(unique(dataSet$InvoiceNo))
+NI = length(unique(dataSet$Description))
+
+```
+
+* number of transactions  : `r NT`
+* number of items   : `r NI`
+
+
+
+## d. Convert the data frame into a *transaction list* and convert it into a *transactions object* (don't forget to load the `arules` package). Print a summary (using `summary()`) of the new object. 
+
+### {.solution}
+
+```{r}
+tList = split(dataSet$Description, dataSet$InvoiceNo)
+trans  = as(tList, "transactions")
+summary(trans)
+
+```
+
+
+## e. Find the items with the highest support. Print and plot the support of the top 10. 
+
+### {.solution}
+
+```{r}
+itemFreq = count(dataSet, Description, sort=TRUE) %>% mutate(support=n/NT)
+# plot top 10
+
+itemFreq %>% slice(1:10) %>% 
+  ggplot(aes(fct_reorder(Description, n), n)) + # order bars by n
+  geom_col() +         # barplot
+  coord_flip() +       # rotate plot 90 deg
+  theme(axis.title.y = element_blank()) # remove y axis title
+
+itemFreq %>% slice(1:10) %>% knitr::kable()
+```
+
+
+
+
+## f. Find the *frequent itemsets* that contain at least 3 items and have $s\geq 0.02$. Add the *lift* metric. Show the top 10 results, ordered by *lift*. 
+### {.solution}
+
+```{r}
+?apriori
+fis2 = apriori(trans, 
+              parameter = list(support = .02,minlen=3,target="frequent"))
+
+apriori2df(fis2) %>% arrange(-support)  # order by support (largest to smallest)
+#-- Add lift using the interestMeasure() function
+result.f = apriori2df(fis2) %>% 
+  mutate(lift = interestMeasure(fis2, measure="lift", trans)) %>% 
+  arrange(-lift)
+
+head(result.f,10)
+```
+
+
+
+## g. Find all of the *association rules* with $s \geq 0.02$, $c \geq 0.70$. Add the *PS/leverage* and *addedValue* metrics. Show all results, ordered by *addedValue*
+
+### {.solution}
+
+```{r message=FALSE, warning=FALSE}
+rules = apriori(trans, 
+             parameter = list(support=.02, confidence=.70, 
+                              minlen=2,target="rules"))
+apriori2df(rules) %>% 
+  mutate(addedValue = interestMeasure(rules, measure="addedValue", trans), 
+         PS = interestMeasure(rules, measure="leverage", trans)) %>% 
+  arrange(-addedValue) %>% knitr::kable()
+```
+
+
+
+
+## h. Find one rule that you think is interesting. Write the rule and explain why you find it interesting. 
+
+### {.solution}
+
+
+I think {PINK REGENCY TEACUP AND SAUCER} and {GREEN REGENCY TEACUP AND SAUCER} is interesting They have a big addedvalue, which indicate they have positive($0.7608$) association and often buy together. From my experience, I would like to choose the same color saucer to make it consistent, while it seems like so many people prefer choose mixed colors in there homes.  
+
+

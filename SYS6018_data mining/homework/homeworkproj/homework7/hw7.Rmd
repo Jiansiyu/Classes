@@ -1,0 +1,162 @@
+---
+title: "Homework #7: Trees and Forests" 
+author: "**Siyu Jian / sj9va**"
+date: "Due: Mon Apr 12 | 10:55am"
+output: R6018::homework
+---
+
+**SYS 4582/6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+```{r config, echo=FALSE}
+source(system.file("config/hw_config.R", package="R6018")) # knitr settings
+# options(dplyr.summarise.inform = FALSE)  # ignore dplyr message about grouping
+```
+
+# Required R packages and Directories
+
+### {.solution}
+```{r packages, message=FALSE, warning=FALSE}
+data.dir = 'https://mdporter.github.io/SYS6018/data/' # data directory
+library(R6018)     # functions for SYS-6018
+library(tidyverse) # functions for data manipulation  
+library(randomForest)
+```
+
+
+# Problem 1: Tree Splitting for classification
+
+Consider the Gini index, classification error, and entropy impurity measures in a simple classification setting with two classes. 
+
+Create a single plot that displays each of these quantities as a function of $p_m$, the estimated probability of an observation in node $m$ being from class 1. The x-axis should display $p_m$, ranging from 0 to 1, and the y-axis should display the value of the Gini index, classification error, and entropy.
+
+### {.solution}
+
+```{r}
+pm <- seq(0.0001,1,0.001)  #
+misclassification.error <- 1 - pmax(pm, 1-pm)
+gini.index     <- 2*pm*(1-pm)
+cross.entropy  <- - (pm * log(pm)  + (1-pm)*log(1-pm))
+
+res.1 = tibble(pm = pm, term = "misclassification.error", value = misclassification.error)
+res.1 = bind_rows(res.1,tibble(pm =pm, term = "gini.index",value = gini.index))
+res.1 = bind_rows(res.1, tibble(pm = pm, term = "cross.entropy", value = cross.entropy))
+
+
+ggplot(res.1, aes(x =  pm, y = value, color=term))  + geom_line()
+```
+
+
+# Problem 2: Combining bootstrap estimates
+
+```{r, echo=FALSE}
+p_red = c(0.2, 0.25, 0.3, 0.4, 0.4, 0.45, 0.7, 0.85, 0.9, 0.9)
+```
+
+Suppose we produce ten bootstrapped samples from a data set containing red and green classes. We then apply a classification tree to each bootstrapped sample and, for a specific value of $X$, produce the following 10 estimates of $\Pr(\text{Class is Red} \mid X)$: $\{`r stringr::str_c(p_red, sep=", ")`\}$.
+
+## a. ISLR 8.2 describes the *majority vote* approach for making a hard classification from a set of bagged classifiers. What is the final classification for this example using majority voting?
+
+### {.solution}
+
+```{r}
+res.2a = ifelse(sum(p_red > 0.5)/length(p_red)>0.5, "Red","Green")
+res.2a
+```
+With the *majority vote* approach, the final classification for this example would be <a style="color:`r res.2a`">`r res.2a`</a>
+
+
+## b. An alternative is to base the final classification on the average probability. What is the final classification for this example using average probability?
+
+
+### {.solution}
+
+
+```{r}
+average_prob = mean(p_red)
+res.2b = ifelse(mean(p_red) >= 0.5, "Red", "Green" )
+```
+With the average probability approach. The average value is `r average_prob`, the final classification for this example with average probability is <a style="color:`r res.2b`">`r res.2b`</a>
+
+
+
+## c. Suppose the cost of mis-classifying a Red observation (as Green) is twice as costly as mis-classifying a Green observation (as Red). How would you modify both approaches to make better final classifications under these unequal costs? Report the final classifications. 
+
+### {.solution}
+
+Since mis-classify cost are different for the two observation. The threshold will adjust to match the cost for each observation $\frac{2}{3}$.
+
+```{r}
+res.2c.1 = ifelse(mean(p_red) >= 2/3.0, "Red","Green")
+res.2c.2 = ifelse(sum(p_red > 0.5)/length(p_red)>2/3.0, "red","green")
+```
+The final classification for the example is <a style="color:`r res.2c.1`">`r res.2c.1`</a> 
+
+
+# Problem 3: Random Forest Tuning
+
+Random forest has several tuning parameters that you will explore in this problem. We will use the `Boston` housing data from the `MASS` R package (See the ISLR Lab in section 8.3.3 for example code).
+
+- Note: remember that `MASS` can mask the `dplyr::select()` function.
+
+## a. List all of the random forest tuning parameters in the `randomForest::randomForest()` function. Note any tuning parameters that are specific to classification or regression problems. Which tuning parameters do you think will be most important to search? 
+
+### {.solution}
+
+The tuning parameters are: `mtry`, `ntree`, `cuoff`, `maxnodes`. `mtry` is specific to classification problem. I think `mtry` and `ntree` will be the most important parameters to search, since there are many features.
+
+
+## b. Use a random forest model to predict `medv`, the median value of owner-occupied homes (in $1000s). Use the default parameters and report the 10-fold cross-validation MSE. 
+
+### {.solution}
+
+```{r}
+set.seed(200)
+# prepare the training dataset
+trainX.3b  = MASS::Boston %>% select(-medv)
+trainY.3b  = MASS::Boston %>% select(medv)
+
+randf.boston.cv = rfcv(trainx = as.matrix(trainX.3b), trainy = as.matrix(trainY.3b), cv.fold=10)
+res.3b = randf.boston.cv$error.cv %>% as.matrix()
+
+colnames(res.3b) <- c("MSE")
+res.3b %>% knitr::kable()
+
+```
+
+**Notes**, the first column is the mtry, the second colomn is the MSE.
+
+## c. Now we will vary the tuning parameters of `mtry` and `ntree` to see what effect they have on performance. 
+- Use a range of reasonable `mtry` and `ntree` values.
+- Use 5 times repeated out-of-bag (OOB) to assess performance. That is, run random forest 5 times for each tuning set, calculate the OOB MSE each time and use the average for the MSE associated with the tuning parameters.
+- Use a plot to show the average MSE as a function of `mtry` and `ntree`.
+- Report the best tuning parameter combination. 
+- Note: random forest is a stochastic model; it will be different every time it runs. Set the random seed to control the uncertainty associated with the stochasticity. 
+- Hint: stIf you use the `randomFore` package, the `mse` element in the output is a vector of OOB MSE values for 1:`ntree` ts in reethe forest. This means that you can set `ntree` to some maximum value and get the MSE for any number of trees less than `ntree`. 
+
+
+### {.solution}
+
+```{r}
+set.seed(1234)
+N.repeat = 5
+mtry.Max = 13
+ntree.Max = 200
+
+res.3c = tibble(type=str_c(),mtry= numeric(),mse = numeric())
+for ( mtry.step in seq(1:mtry.Max)){
+  ntry.step.mse = vector(length = ntree.Max)
+  for(step in 1:N.repeat){
+    rf.step = randomForest(medv ~., data = MASS::Boston, mtry = mtry.step, ntree = ntree.Max)
+    ntry.step.mse = ntry.step.mse + rf.step$mse
+  }
+  # # calculate the mean of the mse
+  ntry.step.mse = ntry.step.mse / N.repeat
+  res.3c = bind_rows(res.3c, tibble(mtry = 1:ntree.Max,type = sprintf('mtry.%d',mtry.step), mse = rf.step$mse))
+}
+
+res.3c %>% ggplot(aes(x= mtry, y = mse, color = type)) + geom_line() + ylim(0,40)  + xlim(0,100)
+
+```
+
+From the above plot we can set, $mtry = 8$ and $ntree = 45$ will gives the best MSE value. 
